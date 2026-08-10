@@ -99,3 +99,51 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function GET() {
+  try {
+    await requireAdmin();
+
+    const pickers = await prisma.user.findMany({
+      where: {
+        role: 'PICKER',
+      },
+      select: {
+        id: true,
+        name: true,
+        phoneNumber: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    return NextResponse.json({
+      data: pickers,
+      count: pickers.length,
+    });
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 },
+      );
+    }
+
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 },
+      );
+    }
+
+    console.error('Get pickers error:', error);
+
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 },
+    );
+  }
+}

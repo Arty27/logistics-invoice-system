@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { ForbiddenError, UnauthorizedError } from '@/server/common/error';
-import { requirePicker } from '@/server/auth/authorization';
+import {
+  requirePicker,
+  requireAdmin,
+  requireUser,
+} from '@/server/auth/authorization';
 import { prisma } from '@/server/db/prisma';
 
 const packlistSchema = z.object({
@@ -104,6 +108,116 @@ export async function POST(request: Request) {
     }
 
     console.error('Create packlist error:', error);
+
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 },
+    );
+  }
+}
+
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format');
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireUser();
+
+    const { searchParams } = new URL(request.url);
+
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    const where: Prisma.PacklistEntryWhereInput = {};
+
+    // Pickers can only ever see their own records.
+    if (user.role === 'PICKER') {
+      where.pickerId = user.id;
+    }
+
+    if (startDate || endDate) {
+      if (!startDate || !endDate) {
+        return NextResponse.json(
+          {
+            error: 'Both startDate and endDate are required.',
+          },
+          { status: 400 },
+        );
+      }
+
+      const startDateResult = dateSchema.safeParse(startDate);
+      const endDateResult = dateSchema.safeParse(endDate);
+
+      if (!startDateResult.success || !endDateResult.success) {
+        return NextResponse.json(
+          {
+            error: 'Dates must be in YYYY-MM-DD format.',
+          },
+          { status: 400 },
+        );
+      }
+
+      const start = new Date(`${startDate}T00:00:00+05:30`);
+      const end = new Date(`${endDate}T00:00:00+05:30`);
+
+      if (end < start) {
+        return NextResponse.json(
+          {
+            error: 'End date cannot be before start date.',
+          },
+          { status: 400 },
+        );
+      }
+
+      end.setDate(end.getDate() + 1);
+
+      where.createdAt = {
+        gte: start,
+        lt: end,
+      };
+    }
+
+    const packlists = await prisma.packlistEntry.findMany({
+      where,
+      select: {
+        id: true,
+        packlistNumber: true,
+        invoiceQuantity: true,
+        grossWeight: true,
+        createdAt: true,
+        picker: {
+          select: {
+            name: true,
+            phoneNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return NextResponse.json({
+      data: packlists.map((packlist) => ({
+        id: packlist.id,
+        packlistNumber: packlist.packlistNumber,
+        invoiceQuantity: packlist.invoiceQuantity,
+        grossWeight: packlist.grossWeight.toString(),
+        createdAt: packlist.createdAt,
+        picker: packlist.picker,
+      })),
+      count: packlists.length,
+    });
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 },
+      );
+    }
+
+    console.error('Get packlists error:', error);
 
     return NextResponse.json(
       { error: 'Something went wrong' },

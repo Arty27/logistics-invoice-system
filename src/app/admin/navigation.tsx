@@ -1,0 +1,94 @@
+'use client';
+
+import { usePathname, useRouter } from 'next/navigation';
+
+type AdminUser = {
+  name: string;
+};
+
+type AdminNavigationProps = {
+  user: AdminUser;
+};
+
+export default function AdminNavigation({ user }: AdminNavigationProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+    } finally {
+      router.replace('/login');
+    }
+  }
+
+  const isPacklistsPage = pathname.startsWith('/admin/packlists');
+  const isPickersPage = pathname.startsWith('/admin/pickers');
+
+  return (
+    <header className="bg-[#f14902] text-white shadow-sm">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <div className="flex h-full items-center gap-8">
+          <p className="cursor-pointer text-base font-semibold whitespace-nowrap">
+            Tatvashree Logistics
+          </p>
+
+          <nav className="flex h-full items-center gap-1">
+            <button
+              type="button"
+              onClick={() => router.push('/admin')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                !isPacklistsPage && !isPickersPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Dashboard
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push('/admin/packlists')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isPacklistsPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Packlists
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push('/admin/pickers')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isPickersPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Pickers
+            </button>
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-sm font-medium">{user.name}</p>
+            <p className="text-xs text-white/75">Administrator</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="cursor-pointer text-sm font-medium hover:text-white/75"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
