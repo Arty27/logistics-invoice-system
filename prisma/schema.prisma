@@ -21,8 +21,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sessions Session[]
-  invoices Invoice[]
+  sessions        Session[]
+  packlistEntries PacklistEntry[]
 }
 
 model Session {
@@ -37,14 +37,14 @@ model Session {
   @@index([userId])
 }
 
-model Invoice {
-  id            String   @id @default(uuid())
-  invoiceNumber String   @unique
-  casesQuantity Int?
-  looseQuantity Int?
-  pickerId      String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model PacklistEntry {
+  id              String   @id @default(uuid())
+  packlistNumber  String   @unique
+  invoiceQuantity Int
+  grossWeight     Decimal  @db.Decimal(12, 2)
+  pickerId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   picker User @relation(fields: [pickerId], references: [id])
 
