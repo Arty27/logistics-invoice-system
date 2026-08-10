@@ -5,3 +5,49 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  ADMIN
+  PICKER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  phoneNumber  String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(PICKER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions Session[]
+  invoices Invoice[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique
+  casesQuantity Int?
+  looseQuantity Int?
+  pickerId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  picker User @relation(fields: [pickerId], references: [id])
+
+  @@index([pickerId])
+  @@index([createdAt])
+}
