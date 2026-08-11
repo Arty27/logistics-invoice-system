@@ -188,7 +188,7 @@ export default function AdminPickersPage() {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
-                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm text-black outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
               />
             </div>
 
@@ -214,7 +214,7 @@ export default function AdminPickersPage() {
                   }
                 }}
                 required
-                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm text-black outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
               />
             </div>
 
@@ -233,7 +233,7 @@ export default function AdminPickersPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 minLength={8}
-                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+                className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm text-black outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
               />
             </div>
 
@@ -316,7 +316,7 @@ export default function AdminPickersPage() {
                       <button
                         type="button"
                         onClick={() => togglePicker(picker)}
-                        className="text-sm font-medium text-[#393536] hover:text-[#f14902]"
+                        className="cursor-pointer text-sm font-medium text-[#393536] hover:text-[#f14902]"
                       >
                         {picker.isActive ? 'Deactivate' : 'Activate'}
                       </button>

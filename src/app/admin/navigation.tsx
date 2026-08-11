@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 type AdminUser = {
   name: string;
@@ -31,9 +32,16 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
     <header className="bg-[#f14902] text-white shadow-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <div className="flex h-full items-center gap-8">
-          <p className="cursor-pointer text-base font-semibold whitespace-nowrap">
-            Tatvashree Logistics
-          </p>
+          <div className="rounded-full border bg-white p-1">
+            <Image
+              src="/ttl.png"
+              alt="Tatvashree Logistics logo"
+              width={34}
+              height={34}
+              className="h-auto max-h-24 w-auto object-contain"
+              priority
+            />
+          </div>
 
           <nav className="flex h-full items-center gap-1">
             <button
