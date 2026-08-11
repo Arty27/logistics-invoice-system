@@ -107,18 +107,18 @@ export default function PickerPage() {
                   id="packlistNumber"
                   name="packlistNumber"
                   type="text"
-                  inputMode="numeric"
+                  inputMode="text"
                   autoComplete="off"
                   maxLength={8}
                   value={packlistNumber}
                   onChange={(event) => {
                     const value = event.target.value;
 
-                    if (/^\d*$/.test(value)) {
+                    if (/^[A-Za-z0-9]*$/.test(value)) {
                       setPacklistNumber(value);
                     }
                   }}
-                  placeholder="Enter 8-digit packlist number"
+                  placeholder="Enter 8-character packlist number"
                   required
                   autoFocus
                   className="h-11 w-full rounded-md border border-[#cfcfcd] px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"

@@ -14,7 +14,10 @@ const packlistSchema = z.object({
   packlistNumber: z
     .string()
     .min(1, 'Packlist number is required')
-    .regex(/^\d{8}$/, 'Packlist number must contain exactly 8 digits'),
+    .regex(
+      /^[A-Za-z0-9]{8}$/,
+      'Packlist number must contain exactly 8 characters',
+    ),
 
   invoiceQuantity: z
     .union([z.string(), z.number()])
