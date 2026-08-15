@@ -11,6 +11,12 @@ enum UserRole {
   PICKER
 }
 
+enum DeliveryStatus {
+  ACTIVE
+  COMPLETED
+  LEGACY
+}
+
 model User {
   id           String   @id @default(uuid())
   phoneNumber  String   @unique
@@ -22,7 +28,13 @@ model User {
   updatedAt    DateTime @updatedAt
 
   sessions        Session[]
-  packlistEntries PacklistEntry[]
+  packlistEntries PacklistEntry[] @relation("LegacyPacklistPicker")
+
+  createdPacklists PacklistEntry[] @relation("PacklistCreator")
+
+  packlistAssignments PacklistPicker[]
+
+  auditLogs AuditLog[]
 }
 
 model Session {
@@ -38,16 +50,60 @@ model Session {
 }
 
 model PacklistEntry {
-  id              String   @id @default(uuid())
-  packlistNumber  String   @unique
+  id              String  @id @default(uuid())
+  packlistNumber  String  @unique
   invoiceQuantity Int
-  grossWeight     Decimal  @db.Decimal(12, 2)
+  grossWeight     Decimal @db.Decimal(12, 2)
   pickerId        String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+
+  createdById String?
+
+  // Delivery life cycle methods
+  status      DeliveryStatus @default(LEGACY)
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  picker User @relation("LegacyPacklistPicker", fields: [pickerId], references: [id])
+
+  createdBy User? @relation("PacklistCreator", fields: [createdById], references: [id])
+
+  pickers PacklistPicker[]
+
+  @@index([pickerId])
+  @@index([createdAt])
+  @@index([createdById])
+  @@index([status])
+}
+
+model PacklistPicker {
+  id         String   @id @default(uuid())
+  packlistId String
+  pickerId   String
+  assignedAt DateTime @default(now())
+
+  packlist PacklistEntry @relation(fields: [packlistId], references: [id], onDelete: Cascade)
 
   picker User @relation(fields: [pickerId], references: [id])
 
+  @@unique([packlistId, pickerId])
   @@index([pickerId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
   @@index([createdAt])
 }
