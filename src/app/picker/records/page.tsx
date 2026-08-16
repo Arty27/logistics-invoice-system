@@ -1,13 +1,14 @@
 'use client';
 
+import { Packlist } from '@/types/Packlist';
 import { useEffect, useState } from 'react';
+import recordsTable from '@/components/PacklistTable';
+import PacklistTable from '@/components/PacklistTable';
 
-type Packlist = {
-  id: string;
-  packlistNumber: string;
-  invoiceQuantity: number;
-  grossWeight: string;
-  createdAt: string;
+type PacklistsResponse = {
+  data?: Packlist[];
+  count?: number;
+  error?: string;
 };
 
 export default function PickerRecordsPage() {
@@ -18,17 +19,18 @@ export default function PickerRecordsPage() {
   useEffect(() => {
     async function loadRecords() {
       try {
-        const response = await fetch('/api/packlists');
+        const response = await fetch('/api/packlists', {
+          cache: 'no-store',
+        });
+
+        const data: PacklistsResponse = await response.json();
 
         if (!response.ok) {
-          const data = await response.json();
           setError(data.error ?? 'Unable to load records.');
           return;
         }
 
-        const data = await response.json();
-
-        setRecords(data.data);
+        setRecords(data.data ?? []);
       } catch {
         setError('Unable to load your records.');
       } finally {
@@ -48,14 +50,12 @@ export default function PickerRecordsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[#393536]">
-          My Submitted Packlists
-        </h1>
+        <h1 className="text-xl font-semibold text-[#393536]">My Records</h1>
 
         <p className="mt-1 text-sm text-[#6b6968]">
-          Packlists you have submitted.
+          Your delivery history and packlist details.
         </p>
       </div>
 
@@ -71,74 +71,16 @@ export default function PickerRecordsPage() {
       {!error && records.length === 0 && (
         <div className="rounded-lg border border-[#dedddb] bg-white px-6 py-12 text-center shadow-sm">
           <p className="text-sm font-medium text-[#393536]">
-            No packlists submitted yet.
+            No records found.
           </p>
 
           <p className="mt-1 text-sm text-[#6b6968]">
-            Submitted packlists will appear here.
+            Your delivery records will appear here.
           </p>
         </div>
       )}
 
-      {!error && records.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-[#dedddb] bg-white shadow-sm">
-          <div className="border-b border-[#e5e4e2] px-5 py-4">
-            <p className="text-sm font-medium text-[#393536]">
-              {records.length} submitted{' '}
-              {records.length === 1 ? 'packlist' : 'packlists'}
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
-                <tr>
-                  <th className="px-5 py-3 font-bold text-[#393536]">
-                    Packlist No.
-                  </th>
-
-                  <th className="px-5 py-3 font-bold text-[#393536]">
-                    Invoice Qty
-                  </th>
-
-                  <th className="px-5 py-3 font-bold text-[#393536]">
-                    Gross Weight
-                  </th>
-
-                  <th className="px-5 py-3 font-bold text-[#393536]">
-                    Submitted
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {records.map((record) => (
-                  <tr
-                    key={record.id}
-                    className="border-b border-[#eeecea] last:border-0"
-                  >
-                    <td className="px-5 py-3 font-medium text-[#393536]">
-                      {record.packlistNumber}
-                    </td>
-
-                    <td className="px-5 py-3 text-[#555251]">
-                      {record.invoiceQuantity}
-                    </td>
-
-                    <td className="px-5 py-3 text-[#555251]">
-                      {record.grossWeight}
-                    </td>
-
-                    <td className="px-5 py-3 text-[#6b6968]">
-                      {new Date(record.createdAt).toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {!error && records.length > 0 && <PacklistTable records={records} />}
     </main>
   );
 }
