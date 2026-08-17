@@ -37,6 +37,18 @@ type ActiveDeliveryResponse = {
   data: Packlist | null;
 };
 
+type Attendance = {
+  id: string;
+  attendanceDate: string;
+  punchedInAt: string;
+  punchedOutAt: string | null;
+};
+
+type AttendanceResponse = {
+  error?: string;
+  data: Attendance | null;
+};
+
 export default function PickerPage() {
   const packlistInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +75,10 @@ export default function PickerPage() {
 
   const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
 
+  const [attendance, setAttendance] = useState<Attendance | null>(null);
+
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
+  const [isPunching, setIsPunching] = useState(false);
   const [error, setError] = useState('');
 
   /*
@@ -100,6 +116,34 @@ export default function PickerPage() {
     }
 
     loadCurrentDelivery();
+  }, []);
+
+  useEffect(() => {
+    async function loadAttendance() {
+      try {
+        setIsLoadingAttendance(true);
+
+        const response = await fetch('/api/attendance/current', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+
+        const data: AttendanceResponse = await response.json();
+
+        if (!response.ok) {
+          setError(data.error ?? 'Unable to load attendance.');
+          return;
+        }
+
+        setAttendance(data.data);
+      } catch {
+        setError('Unable to load attendance.');
+      } finally {
+        setIsLoadingAttendance(false);
+      }
+    }
+
+    loadAttendance();
   }, []);
 
   /*
@@ -250,6 +294,54 @@ export default function PickerPage() {
     }
   }
 
+  async function handlePunchIn() {
+    setError('');
+    setIsPunching(true);
+
+    try {
+      const response = await fetch('/api/attendance/punch-in', {
+        method: 'POST',
+      });
+
+      const data: AttendanceResponse = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? 'Unable to punch in.');
+        return;
+      }
+
+      setAttendance(data.data);
+    } catch {
+      setError('Unable to connect to the server. Please try again.');
+    } finally {
+      setIsPunching(false);
+    }
+  }
+
+  async function handlePunchOut() {
+    setError('');
+    setIsPunching(true);
+
+    try {
+      const response = await fetch('/api/attendance/punch-out', {
+        method: 'POST',
+      });
+
+      const data: AttendanceResponse = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? 'Unable to punch out.');
+        return;
+      }
+
+      setAttendance(data.data);
+    } catch {
+      setError('Unable to connect to the server. Please try again.');
+    } finally {
+      setIsPunching(false);
+    }
+  }
+
   /*
    * ---------------------------------------------------------
    * Complete delivery
@@ -333,6 +425,13 @@ export default function PickerPage() {
     return (
       <main className="min-h-screen bg-[#f7f7f6]">
         <div className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10">
+          <AttendanceCard
+            attendance={attendance}
+            isLoading={isLoadingAttendance}
+            isPunching={isPunching}
+            onPunchIn={handlePunchIn}
+            onPunchOut={handlePunchOut}
+          />
           <div className="mb-6">
             <p className="text-xs font-semibold tracking-wide text-[#f14902] uppercase">
               Active Delivery
@@ -483,6 +582,13 @@ export default function PickerPage() {
   return (
     <main className="min-h-screen bg-[#f7f7f6]">
       <div className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10">
+        <AttendanceCard
+          attendance={attendance}
+          isLoading={isLoadingAttendance}
+          isPunching={isPunching}
+          onPunchIn={handlePunchIn}
+          onPunchOut={handlePunchOut}
+        />
         <div className="mb-6">
           <div className="flex items-center gap-2 text-xs font-medium text-[#777473]">
             <span className={step === 1 ? 'font-semibold text-[#f14902]' : ''}>
@@ -905,6 +1011,105 @@ function ConfirmationDialog({
             {isSubmitting ? 'Please wait...' : confirmLabel}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+function AttendanceCard({
+  attendance,
+  isLoading,
+  isPunching,
+  onPunchIn,
+  onPunchOut,
+}: {
+  attendance: Attendance | null;
+  isLoading: boolean;
+  isPunching: boolean;
+  onPunchIn: () => void;
+  onPunchOut: () => void;
+}) {
+  function formatTime(value: string) {
+    return new Date(value).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  return (
+    <div className="mb-5 rounded-lg border border-[#dedddb] bg-white shadow-sm">
+      <div className="border-b border-[#e5e4e2] px-5 py-4 sm:px-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#393536]">Attendance</h2>
+
+            <p className="mt-1 text-xs text-[#777473]">Today's attendance</p>
+          </div>
+
+          {attendance && !attendance.punchedOutAt && (
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="px-5 py-5 sm:px-6">
+        {isLoading ? (
+          <p className="text-sm text-[#6b6968]">Checking attendance...</p>
+        ) : !attendance ? (
+          <>
+            <div>
+              <p className="text-sm font-medium text-[#393536]">
+                Not punched in
+              </p>
+
+              <p className="mt-1 text-xs text-[#777473]">
+                Punch in when you start work.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onPunchIn}
+              disabled={isPunching}
+              className="mt-5 h-11 w-full cursor-pointer rounded-md bg-[#f14902] px-5 text-sm font-semibold text-white transition hover:bg-[#d94000] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPunching ? 'Punching In...' : 'Punch In'}
+            </button>
+          </>
+        ) : !attendance.punchedOutAt ? (
+          <>
+            <div>
+              <p className="text-sm font-medium text-[#393536]">Punched in</p>
+
+              <p className="mt-1 text-xs text-[#777473]">
+                Started at {formatTime(attendance.punchedInAt)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onPunchOut}
+              disabled={isPunching}
+              className="mt-5 h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-5 text-sm font-semibold text-[#393536] transition hover:bg-[#f7f7f6] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPunching ? 'Punching Out...' : 'Punch Out'}
+            </button>
+          </>
+        ) : (
+          <div>
+            <p className="text-sm font-medium text-[#393536]">
+              Attendance completed
+            </p>
+
+            <p className="mt-1 text-xs text-[#777473]">
+              In {formatTime(attendance.punchedInAt)} · Out{' '}
+              {formatTime(attendance.punchedOutAt)}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -37,6 +37,8 @@ model User {
   auditLogs AuditLog[]
 
   rstEntries RstEntry[]
+
+  attendance Attendance[]
 }
 
 model Session {
@@ -123,4 +125,21 @@ model RstEntry {
   @@index([enteredAt])
   @@index([skuCode])
   @@index([enteredById])
+}
+
+model Attendance {
+  id             String    @id @default(uuid())
+  userId         String
+  attendanceDate DateTime
+  punchedInAt    DateTime
+  punchedOutAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, attendanceDate])
+  @@index([userId])
+  @@index([attendanceDate])
 }
