@@ -27,6 +27,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
 
   const isPacklistsPage = pathname.startsWith('/admin/packlists');
   const isPickersPage = pathname.startsWith('/admin/pickers');
+  const isRstPage = pathname.startsWith('/admin/rst');
 
   return (
     <header className="bg-[#f14902] text-white shadow-sm">
@@ -48,7 +49,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
               type="button"
               onClick={() => router.push('/admin')}
               className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
-                !isPacklistsPage && !isPickersPage
+                !isPacklistsPage && !isPickersPage && !isRstPage
                   ? 'border-white'
                   : 'border-transparent hover:bg-[#d94000]'
               }`}
@@ -66,6 +67,17 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
               }`}
             >
               Packlists
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/admin/rst')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isRstPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              RST
             </button>
 
             <button
