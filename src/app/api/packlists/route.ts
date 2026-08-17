@@ -71,236 +71,276 @@ export async function POST(request: Request) {
       );
     }
 
-    const {
-      packlistNumber,
-      invoiceQuantity,
-      grossWeight,
-      additionalPickerIds,
-    } = result.data;
+    const { packlistNumber, invoiceQuantity, grossWeight } = result.data;
 
     /*
-     * The authenticated picker cannot also be an additional picker.
+     * Additional pickers are supplied by the UI.
+     *
+     * The database supports multiple additional pickers,
+     * while the UI currently limits this to one.
      */
-    if (additionalPickerIds.includes(picker.id)) {
-      return NextResponse.json(
-        {
-          error: 'You cannot add yourself as an additional picker.',
-        },
-        { status: 400 },
-      );
-    }
+    const additionalPickerIds: string[] = Array.isArray(
+      body.additionalPickerIds,
+    )
+      ? body.additionalPickerIds
+      : [];
 
     /*
-     * Prevent duplicate picker IDs in the request.
+     * Remove duplicates.
+     *
+     * This also prevents the primary picker from accidentally
+     * being included twice if the client sends it as an
+     * additional picker.
      */
-    if (new Set(additionalPickerIds).size !== additionalPickerIds.length) {
-      return NextResponse.json(
-        {
-          error: 'The same picker cannot be added more than once.',
-        },
-        { status: 400 },
-      );
-    }
+    const uniqueAdditionalPickerIds = [...new Set(additionalPickerIds)].filter(
+      (id) => id !== picker.id,
+    );
+
+    /*
+     * All pickers participating in this delivery.
+     *
+     * Sorting is important because every transaction acquires
+     * locks in the same order, reducing the possibility of
+     * deadlocks when two deliveries involve overlapping pickers.
+     */
+    const pickerIds = [picker.id, ...uniqueAdditionalPickerIds].sort();
     let additionalPickers: Array<{
       id: string;
       name: string;
       role: 'ADMIN' | 'PICKER';
+      phoneNumber: string;
       isActive: boolean;
-      packlistAssignments: Array<{
-        packlist: {
-          id: string;
-          packlistNumber: string;
-        };
-      }>;
     }> = [];
 
-    const packlist = await prisma.$transaction(async (tx) => {
-      /*
-       * =========================================================
-       * 1. Validate all additional pickers.
-       *
-       * One query checks:
-       *
-       * - picker exists
-       * - picker is active
-       * - picker has PICKER role
-       * - picker currently has an ACTIVE delivery
-       *
-       * We don't need to query the primary picker because
-       * requirePicker() has already authenticated it.
-       * =========================================================
-       */
+    const packlist = await prisma.$transaction(
+      async (tx) => {
+        /*
+         * =========================================================
+         * 1. LOCK ALL INVOLVED PICKERS
+         * =========================================================
+         *
+         * PostgreSQL FOR UPDATE locks these User rows until the
+         * transaction commits or rolls back.
+         *
+         * This is the important part that prevents two concurrent
+         * requests from both passing the "picker is free" check.
+         */
+        await tx.$queryRaw(
+          Prisma.sql`
+            SELECT "id"
+            FROM "User"
+            WHERE "id" IN (${Prisma.join(pickerIds)})
+            FOR UPDATE
+          `,
+        );
 
-      if (additionalPickerIds.length > 0) {
-        additionalPickers = await tx.user.findMany({
+        /*
+         * =========================================================
+         * 2. VALIDATE ADDITIONAL PICKERS
+         * =========================================================
+         *
+         * The User rows are already locked, so their state cannot
+         * change underneath this transaction.
+         */
+
+        if (uniqueAdditionalPickerIds.length > 0) {
+          additionalPickers = await tx.user.findMany({
+            where: {
+              id: {
+                in: uniqueAdditionalPickerIds,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              phoneNumber: true,
+              isActive: true,
+            },
+          });
+
+          /*
+           * Make sure every requested picker exists.
+           */
+          if (additionalPickers.length !== uniqueAdditionalPickerIds.length) {
+            throw new Error('ADDITIONAL_PICKER_NOT_FOUND');
+          }
+
+          /*
+           * Make sure every additional picker is:
+           *
+           * - a PICKER
+           * - active
+           */
+          const invalidPicker = additionalPickers.find(
+            (additionalPicker) =>
+              additionalPicker.role !== 'PICKER' || !additionalPicker.isActive,
+          );
+
+          if (invalidPicker) {
+            throw new Error('ADDITIONAL_PICKER_INVALID');
+          }
+        }
+
+        /*
+         * =========================================================
+         * 3. CHECK PRIMARY PICKER
+         * =========================================================
+         *
+         * The primary picker's User row is already locked.
+         *
+         * Therefore another concurrent delivery cannot get past
+         * the same lock until this transaction finishes.
+         */
+        const primaryActiveDelivery = await tx.packlistPicker.findFirst({
           where: {
-            id: {
-              in: additionalPickerIds,
+            pickerId: picker.id,
+            packlist: {
+              status: 'ACTIVE',
             },
           },
           select: {
-            id: true,
-            name: true,
-            phoneNumber: true,
-            role: true,
-            isActive: true,
-
-            packlistAssignments: {
-              where: {
-                packlist: {
-                  status: 'ACTIVE',
-                },
-              },
+            packlist: {
               select: {
-                packlist: {
-                  select: {
-                    id: true,
-                    packlistNumber: true,
-                  },
-                },
+                packlistNumber: true,
               },
             },
           },
         });
 
-        /*
-         * Check that every requested picker exists.
-         */
-        if (additionalPickers.length !== additionalPickerIds.length) {
-          throw new Error('ADDITIONAL_PICKER_NOT_FOUND');
-        }
-
-        /*
-         * Check that all requested users are valid active pickers.
-         */
-        const invalidPicker = additionalPickers.find(
-          (additionalPicker) =>
-            additionalPicker.role !== 'PICKER' || !additionalPicker.isActive,
-        );
-
-        if (invalidPicker) {
-          throw new Error('ADDITIONAL_PICKER_INVALID');
-        }
-
-        /*
-         * Check whether any additional picker already has
-         * an active delivery.
-         */
-        const busyAdditionalPicker = additionalPickers.find(
-          (additionalPicker) => additionalPicker.packlistAssignments.length > 0,
-        );
-
-        if (busyAdditionalPicker) {
-          const activeDelivery = busyAdditionalPicker.packlistAssignments[0];
-
+        if (primaryActiveDelivery) {
           throw new Error(
-            `ADDITIONAL_PICKER_BUSY:${activeDelivery.packlist.packlistNumber}`,
+            `PRIMARY_PICKER_BUSY:${primaryActiveDelivery.packlist.packlistNumber}`,
           );
         }
-      }
 
-      /*
-       * =========================================================
-       * 2. Check whether the primary picker already has an
-       *    active delivery.
-       *
-       * This is separate from the additional-picker query because
-       * requirePicker() gives us the authenticated primary user,
-       * but we still need to check their current assignment.
-       * =========================================================
-       */
-
-      const primaryActiveDelivery = await tx.packlistPicker.findFirst({
-        where: {
-          pickerId: picker.id,
-          packlist: {
-            status: 'ACTIVE',
-          },
-        },
-        select: {
-          packlist: {
-            select: {
-              packlistNumber: true,
+        /*
+         * =========================================================
+         * 4. CHECK ADDITIONAL PICKERS
+         * =========================================================
+         *
+         * Because their User rows are also locked, two concurrent
+         * delivery requests cannot both successfully assign the
+         * same picker.
+         */
+        if (uniqueAdditionalPickerIds.length > 0) {
+          const busyAdditionalPicker = await tx.packlistPicker.findFirst({
+            where: {
+              pickerId: {
+                in: uniqueAdditionalPickerIds,
+              },
+              packlist: {
+                status: 'ACTIVE',
+              },
             },
-          },
-        },
-      });
+            select: {
+              pickerId: true,
+              packlist: {
+                select: {
+                  packlistNumber: true,
+                },
+              },
+            },
+          });
 
-      if (primaryActiveDelivery) {
-        throw new Error(
-          `PRIMARY_PICKER_BUSY:${primaryActiveDelivery.packlist.packlistNumber}`,
-        );
-      }
+          if (busyAdditionalPicker) {
+            throw new Error(
+              `ADDITIONAL_PICKER_BUSY:${busyAdditionalPicker.packlist.packlistNumber}`,
+            );
+          }
+        }
 
-      /*
-       * =========================================================
-       * 3. Create PacklistEntry.
-       *
-       * pickerId is retained temporarily for backward
-       * compatibility with the existing application.
-       *
-       * createdById is the new source of truth.
-       * =========================================================
-       */
-
-      const createdPacklist = await tx.packlistEntry.create({
-        data: {
-          packlistNumber,
-          invoiceQuantity,
-          grossWeight,
-
-          // Legacy compatibility
-          pickerId: picker.id,
-
-          // New primary picker
-          createdById: picker.id,
-
-          // Delivery lifecycle
-          status: 'ACTIVE',
-          startedAt: new Date(),
-        },
-      });
-
-      /*
-       * =========================================================
-       * 4. Add primary picker and additional pickers if any
-       * =========================================================
-       */
-
-      const pickerIds = [picker.id, ...additionalPickerIds];
-
-      await tx.packlistPicker.createMany({
-        data: pickerIds.map((pickerId) => ({
-          packlistId: createdPacklist.id,
-          pickerId,
-        })),
-      });
-
-      /*
-       * =========================================================
-       * 6. Create audit record.
-       * =========================================================
-       */
-
-      await tx.auditLog.create({
-        data: {
-          userId: picker.id,
-          action: 'CREATE_PACKLIST',
-          entityType: 'PACKLIST',
-          entityId: createdPacklist.id,
-          changes: {
+        /*
+         * =========================================================
+         * 5. CREATE PACKLIST
+         * =========================================================
+         */
+        const createdPacklist = await tx.packlistEntry.create({
+          data: {
             packlistNumber,
             invoiceQuantity,
             grossWeight,
-            primaryPickerId: picker.id,
-            additionalPickerIds,
+
+            /*
+             * Legacy compatibility.
+             *
+             * Keep this populated for the existing application.
+             */
+            pickerId: picker.id,
+
+            /*
+             * New source of truth for who created the delivery.
+             */
+            createdById: picker.id,
+
+            /*
+             * Delivery lifecycle.
+             */
+            status: 'ACTIVE',
+            startedAt: new Date(),
           },
-        },
-      });
+        });
 
-      return createdPacklist;
-    });
+        /*
+         * =========================================================
+         * 6. CREATE PICKER ASSIGNMENTS
+         * =========================================================
+         *
+         * One createMany call handles:
+         *
+         * primary picker
+         * +
+         * all additional pickers
+         *
+         * The database's unique constraint on
+         * (packlistId, pickerId) provides another layer of safety.
+         */
+        const allPickerIds = [picker.id, ...uniqueAdditionalPickerIds];
 
+        await tx.packlistPicker.createMany({
+          data: allPickerIds.map((pickerId) => ({
+            packlistId: createdPacklist.id,
+            pickerId,
+          })),
+        });
+
+        /*
+         * =========================================================
+         * 7. AUDIT LOG
+         * =========================================================
+         */
+        await tx.auditLog.create({
+          data: {
+            userId: picker.id,
+            action: 'CREATE_PACKLIST',
+            entityType: 'PACKLIST',
+            entityId: createdPacklist.id,
+            changes: {
+              packlistNumber,
+              invoiceQuantity,
+              grossWeight,
+              primaryPickerId: picker.id,
+              additionalPickerIds: uniqueAdditionalPickerIds,
+            },
+          },
+        });
+
+        return createdPacklist;
+      },
+      {
+        /*
+         * We are deliberately using a transaction because the
+         * row locks must remain held until all changes are complete.
+         */
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
+    );
+
+    /*
+     * ===========================================================
+     * 8. RESPONSE
+     * ===========================================================
+     */
     return NextResponse.json(
       {
         success: true,
@@ -320,10 +360,11 @@ export async function POST(request: Request) {
               phoneNumber: picker.phoneNumber,
               role: picker.role,
             },
+
             ...additionalPickers.map((additionalPicker) => ({
               id: additionalPicker.id,
               name: additionalPicker.name,
-              phoneNumber: undefined,
+              phoneNumber: additionalPicker.phoneNumber,
               role: additionalPicker.role,
             })),
           ],
@@ -332,41 +373,29 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    /*
+     * ===========================================================
+     * AUTHENTICATION / AUTHORIZATION
+     * ===========================================================
+     */
     if (error instanceof UnauthorizedError) {
       return NextResponse.json(
-        {
-          error: 'Authentication required',
-        },
+        { error: 'Authentication required.' },
         { status: 401 },
       );
     }
 
     if (error instanceof ForbiddenError) {
       return NextResponse.json(
-        {
-          error: 'Only pickers can enter packlists',
-        },
+        { error: 'Only pickers can enter packlists.' },
         { status: 403 },
       );
     }
 
     /*
-     * Duplicate packlist number.
-     */
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      return NextResponse.json(
-        {
-          error: 'This packlist number has already been entered.',
-        },
-        { status: 409 },
-      );
-    }
-
-    /*
-     * Primary picker is already handling a delivery.
+     * ===========================================================
+     * PRIMARY PICKER BUSY
+     * ===========================================================
      */
     if (
       error instanceof Error &&
@@ -383,24 +412,9 @@ export async function POST(request: Request) {
     }
 
     /*
-     * Additional picker is already handling a delivery.
-     */
-    if (
-      error instanceof Error &&
-      error.message.startsWith('ADDITIONAL_PICKER_BUSY:')
-    ) {
-      const packlistNumber = error.message.split(':')[1];
-
-      return NextResponse.json(
-        {
-          error: `One of the selected pickers is already assigned to an active delivery (${packlistNumber}).`,
-        },
-        { status: 409 },
-      );
-    }
-
-    /*
-     * Additional picker doesn't exist.
+     * ===========================================================
+     * ADDITIONAL PICKER NOT FOUND
+     * ===========================================================
      */
     if (
       error instanceof Error &&
@@ -415,7 +429,9 @@ export async function POST(request: Request) {
     }
 
     /*
-     * Additional picker exists but is not an active picker.
+     * ===========================================================
+     * ADDITIONAL PICKER INVALID
+     * ===========================================================
      */
     if (
       error instanceof Error &&
@@ -423,9 +439,46 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         {
-          error: 'One or more selected pickers are inactive or invalid.',
+          error:
+            'One or more selected pickers are inactive or are not valid pickers.',
         },
         { status: 400 },
+      );
+    }
+
+    /*
+     * ===========================================================
+     * ADDITIONAL PICKER BUSY
+     * ===========================================================
+     */
+    if (
+      error instanceof Error &&
+      error.message.startsWith('ADDITIONAL_PICKER_BUSY:')
+    ) {
+      const packlistNumber = error.message.split(':')[1];
+
+      return NextResponse.json(
+        {
+          error: `The selected additional picker is already assigned to active delivery ${packlistNumber}.`,
+        },
+        { status: 409 },
+      );
+    }
+
+    /*
+     * ===========================================================
+     * DUPLICATE PACKLIST
+     * ===========================================================
+     */
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return NextResponse.json(
+        {
+          error: 'This packlist number has already been entered.',
+        },
+        { status: 409 },
       );
     }
 
@@ -433,7 +486,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: 'Something went wrong',
+        error: 'Something went wrong.',
       },
       { status: 500 },
     );

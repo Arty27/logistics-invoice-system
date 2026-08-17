@@ -35,6 +35,8 @@ model User {
   packlistAssignments PacklistPicker[]
 
   auditLogs AuditLog[]
+
+  rstEntries RstEntry[]
 }
 
 model Session {
@@ -106,4 +108,19 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId])
   @@index([createdAt])
+}
+
+model RstEntry {
+  id          String   @id @default(uuid())
+  skuCode     String
+  quantity    Int
+  enteredById String
+  enteredAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  enteredBy User @relation(fields: [enteredById], references: [id])
+
+  @@index([enteredAt])
+  @@index([skuCode])
+  @@index([enteredById])
 }
