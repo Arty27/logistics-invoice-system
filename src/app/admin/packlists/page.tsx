@@ -1,19 +1,10 @@
 'use client';
 
+import PacklistTable from '@/components/PacklistTable';
+import { splitEvenly } from '@/lib/functions';
+import { Packlist } from '@/types/Packlist';
 import ExcelJS from 'exceljs';
 import { useState } from 'react';
-
-type Packlist = {
-  id: string;
-  packlistNumber: string;
-  invoiceQuantity: number;
-  grossWeight: string;
-  createdAt: string;
-  picker: {
-    name: string;
-    phoneNumber: string;
-  };
-};
 
 function getToday() {
   const today = new Date();
@@ -111,6 +102,21 @@ export default function AdminPacklistsPage() {
           width: 20,
         },
         {
+          header: 'Status',
+          key: 'status',
+          width: 15,
+        },
+        {
+          header: 'Started',
+          key: 'startedAt',
+          width: 15,
+        },
+        {
+          header: 'Completed',
+          key: 'completedAt',
+          width: 15,
+        },
+        {
           header: 'Picker',
           key: 'picker',
           width: 25,
@@ -125,13 +131,20 @@ export default function AdminPacklistsPage() {
         },
       ];
       for (const record of records) {
-        worksheet.addRow({
-          createdAt: new Date(record.createdAt),
-          packlistNumber: String(record.packlistNumber),
-          invoiceQuantity: record.invoiceQuantity,
-          grossWeight: Number(record.grossWeight),
-          picker: record.picker.name,
-          phoneNumber: String(record.picker.phoneNumber),
+        let noOfPickers = record.pickers.length;
+        let invoiceArr = splitEvenly(record.invoiceQuantity, noOfPickers);
+        record.pickers.map((picker, i) => {
+          worksheet.addRow({
+            createdAt: new Date(record.createdAt),
+            packlistNumber: String(record.packlistNumber),
+            invoiceQuantity: invoiceArr[i],
+            grossWeight: Number(record.grossWeight) / record.pickers.length,
+            status: record.status,
+            startedAt: record.startedAt,
+            completedAt: record.completedAt,
+            picker: picker.name,
+            phoneNumber: String(picker.phoneNumber),
+          });
         });
       }
 
@@ -171,8 +184,9 @@ export default function AdminPacklistsPage() {
       link.remove();
 
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (error) {
       setError('Unable to generate the Excel file.');
+      console.log(error);
     } finally {
       setIsDownloading(false);
     }
@@ -296,66 +310,7 @@ export default function AdminPacklistsPage() {
                   </p>
                 </div>
               )}
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
-                  <tr>
-                    <th className="px-5 py-3 font-bold text-[#393536]">
-                      Packlist No.
-                    </th>
-
-                    <th className="px-5 py-3 font-bold text-[#393536]">
-                      Invoice Qty
-                    </th>
-
-                    <th className="px-5 py-3 font-bold text-[#393536]">
-                      Gross Weight
-                    </th>
-
-                    <th className="px-5 py-3 font-bold text-[#393536]">
-                      Picker
-                    </th>
-
-                    <th className="px-5 py-3 font-bold text-[#393536]">
-                      Submitted
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {records.slice(0, 15).map((record) => (
-                    <tr
-                      key={record.id}
-                      className="border-b border-[#eeecea] last:border-0"
-                    >
-                      <td className="px-5 py-3 font-medium text-[#393536]">
-                        {record.packlistNumber}
-                      </td>
-
-                      <td className="px-5 py-3 text-[#555251]">
-                        {record.invoiceQuantity}
-                      </td>
-
-                      <td className="px-5 py-3 text-[#555251]">
-                        {record.grossWeight}
-                      </td>
-
-                      <td className="px-5 py-3">
-                        <p className="font-medium text-[#393536]">
-                          {record.picker.name}
-                        </p>
-
-                        <p className="text-xs text-[#777473]">
-                          {record.picker.phoneNumber}
-                        </p>
-                      </td>
-
-                      <td className="px-5 py-3 text-[#6b6968]">
-                        {new Date(record.createdAt).toLocaleString('en-IN')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PacklistTable records={records.slice(0, 15)} />
             </div>
           )}
         </section>

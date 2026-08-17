@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ForbiddenError, UnauthorizedError } from '@/server/common/error';
-import { requireAdmin } from '@/server/auth/authorization';
+import { requireAdmin, requireUser } from '@/server/auth/authorization';
 import { prisma } from '@/server/db/prisma';
 
 const createPickerSchema = z.object({
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireUser();
 
     const pickers = await prisma.user.findMany({
       where: {
