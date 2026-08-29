@@ -2,19 +2,24 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
+type DeliveryType = 'INWARD' | 'OUTWARD' | 'MATERIAL_RETURN' | 'OTHER';
+
 type Picker = {
   id: string;
   name: string;
   phoneNumber: string;
-  role: 'ADMIN' | 'PICKER';
+  role: 'ADMIN' | 'PICKER' | 'SUPERVISOR';
+  isActive?: boolean;
 };
 
 type Packlist = {
   id: string;
-  packlistNumber: string;
+  referenceNumber: string;
+  packlistNumber?: string | null;
   invoiceQuantity: number;
   grossWeight: string;
   status: 'ACTIVE' | 'COMPLETED' | 'LEGACY';
+  deliveryType: DeliveryType;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -49,19 +54,37 @@ type AttendanceResponse = {
   data: Attendance | null;
 };
 
+const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
+  INWARD: 'Inward',
+  OUTWARD: 'Outward',
+  MATERIAL_RETURN: 'Material Return',
+  OTHER: 'Other',
+};
+
 export default function PickerPage() {
-  const packlistInputRef = useRef<HTMLInputElement>(null);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>(1);
 
-  const [packlistNumber, setPacklistNumber] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState('');
   const [invoiceQuantity, setInvoiceQuantity] = useState('');
   const [grossWeight, setGrossWeight] = useState('');
 
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('OUTWARD');
+
   const [availablePickers, setAvailablePickers] = useState<Picker[]>([]);
-  const [selectedPickerId, setSelectedPickerId] = useState('');
+  const [selectedPickerIds, setSelectedPickerIds] = useState<string[]>([]);
+  const [pickerSearch, setPickerSearch] = useState('');
 
   const [activeDelivery, setActiveDelivery] = useState<Packlist | null>(null);
+
+  /*
+   * Completed delivery is kept temporarily so that
+   * we can show the completion summary and time taken.
+   */
+  const [completedDelivery, setCompletedDelivery] = useState<Packlist | null>(
+    null,
+  );
 
   const [isLoadingDelivery, setIsLoadingDelivery] = useState(true);
   const [isLoadingPickers, setIsLoadingPickers] = useState(false);
@@ -75,18 +98,51 @@ export default function PickerPage() {
 
   const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
 
-  const [attendance, setAttendance] = useState<Attendance | null>(null);
-
-  const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
-  const [isPunching, setIsPunching] = useState(false);
   const [error, setError] = useState('');
 
   /*
    * ---------------------------------------------------------
-   * Load the current active delivery.
+   * Format duration
    *
-   * We deliberately use the existing packlists endpoint rather
-   * than calling /api/auth/me again.
+   * Example:
+   * 45 minutes 20 seconds
+   * becomes:
+   * 0 hours 45 mins 20 seconds
+   *
+   * 2 hours 5 minutes 8 seconds
+   * becomes:
+   * 2 hours 5 mins 8 seconds
+   * ---------------------------------------------------------
+   */
+  function formatDuration(
+    startedAt: string | null,
+    completedAt: string | null,
+  ) {
+    if (!startedAt || !completedAt) {
+      return 'Not available';
+    }
+
+    const start = new Date(startedAt).getTime();
+    const end = new Date(completedAt).getTime();
+
+    if (Number.isNaN(start) || Number.isNaN(end)) {
+      return 'Not available';
+    }
+
+    const differenceInSeconds = Math.max(0, Math.floor((end - start) / 1000));
+
+    const hours = Math.floor(differenceInSeconds / 3600);
+
+    const minutes = Math.floor((differenceInSeconds % 3600) / 60);
+
+    const seconds = differenceInSeconds % 60;
+
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ${minutes} mins ${seconds} seconds`;
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * Load current active delivery
    * ---------------------------------------------------------
    */
   useEffect(() => {
@@ -118,43 +174,9 @@ export default function PickerPage() {
     loadCurrentDelivery();
   }, []);
 
-  useEffect(() => {
-    async function loadAttendance() {
-      try {
-        setIsLoadingAttendance(true);
-
-        const response = await fetch('/api/attendance/current', {
-          method: 'GET',
-          cache: 'no-store',
-        });
-
-        const data: AttendanceResponse = await response.json();
-
-        if (!response.ok) {
-          setError(data.error ?? 'Unable to load attendance.');
-          return;
-        }
-
-        setAttendance(data.data);
-      } catch {
-        setError('Unable to load attendance.');
-      } finally {
-        setIsLoadingAttendance(false);
-      }
-    }
-
-    loadAttendance();
-  }, []);
-
   /*
    * ---------------------------------------------------------
-   * Load available pickers when entering Step 2.
-   *
-   * We assume an admin/picker endpoint already exists:
-   * GET /api/users?role=PICKER
-   *
-   * If your existing users API uses a different query shape,
-   * only this request needs to be adjusted.
+   * Load available pickers when entering Step 2
    * ---------------------------------------------------------
    */
   useEffect(() => {
@@ -179,13 +201,21 @@ export default function PickerPage() {
           return;
         }
 
-        /*
-         * Adjust this if your users API returns a different
-         * response property.
-         */
         const users = (data.data ?? []) as unknown as Picker[];
 
-        setAvailablePickers(users);
+        /*
+         * The backend /api/users endpoint is expected to
+         * already filter out the current user and restrict
+         * the results to the current user's company.
+         *
+         * The frontend additionally ensures that only
+         * active PICKER users are displayed.
+         */
+        setAvailablePickers(
+          users.filter(
+            (user) => user.role === 'PICKER' && user.isActive !== false,
+          ),
+        );
       } catch {
         setError('Unable to load available pickers.');
       } finally {
@@ -198,6 +228,43 @@ export default function PickerPage() {
 
   /*
    * ---------------------------------------------------------
+   * Filter picker list based on search
+   * ---------------------------------------------------------
+   */
+  const filteredPickers = availablePickers.filter((picker) => {
+    const search = pickerSearch.trim().toLowerCase();
+
+    if (!search) {
+      return true;
+    }
+
+    return (
+      picker.name.toLowerCase().includes(search) ||
+      picker.phoneNumber.toLowerCase().includes(search)
+    );
+  });
+
+  /*
+   * ---------------------------------------------------------
+   * Add / remove additional picker
+   * ---------------------------------------------------------
+   */
+  function togglePicker(pickerId: string) {
+    setSelectedPickerIds((current) => {
+      if (current.includes(pickerId)) {
+        return current.filter((id) => id !== pickerId);
+      }
+
+      return [...current, pickerId];
+    });
+  }
+
+  function removePicker(pickerId: string) {
+    setSelectedPickerIds((current) => current.filter((id) => id !== pickerId));
+  }
+
+  /*
+   * ---------------------------------------------------------
    * Step 1 → Step 2
    * ---------------------------------------------------------
    */
@@ -206,10 +273,20 @@ export default function PickerPage() {
 
     setError('');
 
-    if (!/^[A-Za-z0-9]{8}$/.test(packlistNumber)) {
-      setError(
-        'Packlist number must contain exactly 8 alphanumeric characters.',
-      );
+    const trimmedReferenceNumber = referenceNumber.trim();
+
+    if (!trimmedReferenceNumber) {
+      setError('Reference number is required.');
+      return;
+    }
+
+    /*
+     * Alphanumeric only.
+     *
+     * No fixed length.
+     */
+    if (!/^[A-Za-z0-9]+$/.test(trimmedReferenceNumber)) {
+      setError('Reference number can contain only letters and numbers.');
       return;
     }
 
@@ -223,6 +300,8 @@ export default function PickerPage() {
       return;
     }
 
+    setReferenceNumber(trimmedReferenceNumber);
+
     setStep(2);
   }
 
@@ -235,6 +314,16 @@ export default function PickerPage() {
     event.preventDefault();
 
     setError('');
+
+    /*
+     * Inward deliveries require at least one
+     * additional picker.
+     */
+    if (deliveryType === 'INWARD' && selectedPickerIds.length === 0) {
+      setError('Inward deliveries require at least one additional picker.');
+      return;
+    }
+
     setStep(3);
   }
 
@@ -254,10 +343,15 @@ export default function PickerPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          packlistNumber,
+          referenceNumber,
           invoiceQuantity,
           grossWeight,
-          additionalPickerIds: selectedPickerId ? [selectedPickerId] : [],
+          deliveryType,
+
+          /*
+           * Backend accepts an array of picker IDs.
+           */
+          additionalPickerIds: selectedPickerIds,
         }),
       });
 
@@ -280,6 +374,7 @@ export default function PickerPage() {
 
       if (!data.packlist) {
         setError('Delivery was created but no delivery details were returned.');
+
         setShowStartConfirmation(false);
         return;
       }
@@ -288,57 +383,10 @@ export default function PickerPage() {
       setShowStartConfirmation(false);
     } catch {
       setError('Unable to connect to the server. Please try again.');
+
       setShowStartConfirmation(false);
     } finally {
       setIsStartingDelivery(false);
-    }
-  }
-
-  async function handlePunchIn() {
-    setError('');
-    setIsPunching(true);
-
-    try {
-      const response = await fetch('/api/attendance/punch-in', {
-        method: 'POST',
-      });
-
-      const data: AttendanceResponse = await response.json();
-
-      if (!response.ok) {
-        setError(data.error ?? 'Unable to punch in.');
-        return;
-      }
-
-      setAttendance(data.data);
-    } catch {
-      setError('Unable to connect to the server. Please try again.');
-    } finally {
-      setIsPunching(false);
-    }
-  }
-
-  async function handlePunchOut() {
-    setError('');
-    setIsPunching(true);
-
-    try {
-      const response = await fetch('/api/attendance/punch-out', {
-        method: 'POST',
-      });
-
-      const data: AttendanceResponse = await response.json();
-
-      if (!response.ok) {
-        setError(data.error ?? 'Unable to punch out.');
-        return;
-      }
-
-      setAttendance(data.data);
-    } catch {
-      setError('Unable to connect to the server. Please try again.');
-    } finally {
-      setIsPunching(false);
     }
   }
 
@@ -367,32 +415,68 @@ export default function PickerPage() {
 
       if (!response.ok) {
         setError(data.error ?? 'Unable to complete delivery.');
+
         setShowCompleteConfirmation(false);
         return;
       }
 
-      setActiveDelivery(null);
-      setShowCompleteConfirmation(false);
+      if (!data.packlist) {
+        setError(
+          'Delivery was completed but no delivery details were returned.',
+        );
+
+        setShowCompleteConfirmation(false);
+        return;
+      }
 
       /*
-       * Reset the form so the picker can immediately start
-       * another delivery.
+       * IMPORTANT:
+       *
+       * Instead of immediately setting activeDelivery to null
+       * and returning to the start screen, we keep the completed
+       * delivery so we can show:
+       *
+       * - Reference number
+       * - Delivery type
+       * - Started time
+       * - Completed time
+       * - Total time taken
+       * - Delivery team
        */
-      setPacklistNumber('');
-      setInvoiceQuantity('');
-      setGrossWeight('');
-      setSelectedPickerId('');
-      setStep(1);
-
-      requestAnimationFrame(() => {
-        packlistInputRef.current?.focus();
-      });
+      setCompletedDelivery(data.packlist);
+      setActiveDelivery(null);
+      setShowCompleteConfirmation(false);
     } catch {
       setError('Unable to connect to the server. Please try again.');
+
       setShowCompleteConfirmation(false);
     } finally {
       setIsCompletingDelivery(false);
     }
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * Start a new delivery after completion
+   * ---------------------------------------------------------
+   */
+  function handleStartNewDelivery() {
+    setCompletedDelivery(null);
+
+    setReferenceNumber('');
+    setInvoiceQuantity('');
+    setGrossWeight('');
+    setDeliveryType('OUTWARD');
+
+    setSelectedPickerIds([]);
+    setPickerSearch('');
+    setError('');
+
+    setStep(1);
+
+    requestAnimationFrame(() => {
+      referenceInputRef.current?.focus();
+    });
   }
 
   /*
@@ -416,22 +500,199 @@ export default function PickerPage() {
 
   /*
    * =========================================================
+   * COMPLETED DELIVERY
+   * =========================================================
+   */
+  if (completedDelivery) {
+    return (
+      <main className="min-h-screen bg-[#f7f7f6]">
+        <div className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10">
+          <div className="mb-6">
+            <p className="text-xs font-semibold tracking-wide text-green-600 uppercase">
+              Delivery Completed
+            </p>
+
+            <h1 className="mt-1 text-xl font-semibold text-[#393536]">
+              Delivery Successfully Completed
+            </h1>
+
+            <p className="mt-1 text-sm text-[#6b6968]">
+              The delivery has been recorded successfully.
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-[#dedddb] bg-white shadow-sm">
+            {/*
+             * Success header
+             */}
+            <div className="border-b border-[#e5e4e2] px-5 py-6 text-center sm:px-6">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
+                <span className="text-2xl text-green-600">✓</span>
+              </div>
+
+              <p className="mt-4 text-xs font-medium tracking-wide text-[#777473] uppercase">
+                Reference Number
+              </p>
+
+              <p className="mt-1 text-2xl font-semibold tracking-wide text-[#393536]">
+                {completedDelivery.referenceNumber}
+              </p>
+            </div>
+
+            <div className="divide-y divide-[#eeecea]">
+              {/*
+               * TIME TAKEN
+               *
+               * This is intentionally more prominent.
+               */}
+              <div className="bg-[#fff8f5] px-5 py-6 text-center sm:px-6">
+                <p className="text-xs font-semibold tracking-wide text-[#777473] uppercase">
+                  Time Taken
+                </p>
+
+                <p className="mt-2 text-2xl font-bold tracking-tight text-[#f14902] sm:text-3xl">
+                  {formatDuration(
+                    completedDelivery.startedAt,
+                    completedDelivery.completedAt,
+                  )}
+                </p>
+
+                <p className="mt-2 text-xs text-[#777473]">
+                  Total time from starting to completing the delivery
+                </p>
+              </div>
+
+              {/*
+               * Delivery type
+               */}
+              <div className="px-5 py-4 sm:px-6">
+                <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                  Delivery Type
+                </p>
+
+                <p className="mt-1 text-sm font-medium text-[#393536]">
+                  {DELIVERY_TYPE_LABELS[completedDelivery.deliveryType]}
+                </p>
+              </div>
+
+              {/*
+               * Started / completed timestamps
+               */}
+              <div className="grid grid-cols-1 divide-y divide-[#eeecea] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <div className="px-5 py-4 sm:px-6">
+                  <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                    Started
+                  </p>
+
+                  <p className="mt-1 text-sm text-[#393536]">
+                    {completedDelivery.startedAt
+                      ? new Date(completedDelivery.startedAt).toLocaleString(
+                          'en-IN',
+                        )
+                      : 'Not available'}
+                  </p>
+                </div>
+
+                <div className="px-5 py-4 sm:px-6">
+                  <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                    Completed
+                  </p>
+
+                  <p className="mt-1 text-sm text-[#393536]">
+                    {completedDelivery.completedAt
+                      ? new Date(completedDelivery.completedAt).toLocaleString(
+                          'en-IN',
+                        )
+                      : 'Not available'}
+                  </p>
+                </div>
+              </div>
+
+              {/*
+               * Quantity / weight
+               */}
+              <div className="grid grid-cols-2 divide-x divide-[#eeecea]">
+                <div className="px-5 py-4 sm:px-6">
+                  <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                    Invoice Quantity
+                  </p>
+
+                  <p className="mt-1 text-base font-semibold text-[#393536]">
+                    {completedDelivery.invoiceQuantity}
+                  </p>
+                </div>
+
+                <div className="px-5 py-4 sm:px-6">
+                  <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                    Gross Weight
+                  </p>
+
+                  <p className="mt-1 text-base font-semibold text-[#393536]">
+                    {completedDelivery.grossWeight} kg
+                  </p>
+                </div>
+              </div>
+
+              {/*
+               * Delivery team
+               */}
+              <div className="px-5 py-5 sm:px-6">
+                <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                  Delivery Team
+                </p>
+
+                <div className="mt-3 space-y-2">
+                  {completedDelivery.pickers.map((picker, index) => (
+                    <div
+                      key={picker.id}
+                      className="flex items-center justify-between rounded-md bg-[#f7f7f6] px-3 py-2.5"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[#393536]">
+                          {picker.name}
+                        </p>
+
+                        <p className="text-xs text-[#777473]">
+                          {index === 0 ? 'Primary picker' : 'Additional picker'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-[#777473]">
+                  Total pickers: {completedDelivery.pickers.length}
+                </p>
+              </div>
+            </div>
+
+            {/*
+             * Start another delivery
+             */}
+            <div className="border-t border-[#e5e4e2] px-5 py-5 sm:px-6">
+              <button
+                type="button"
+                onClick={handleStartNewDelivery}
+                className="h-12 w-full cursor-pointer rounded-md bg-[#f14902] px-5 text-sm font-semibold text-white transition hover:bg-[#d94000]"
+              >
+                Start New Delivery
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  /*
+   * =========================================================
    * ACTIVE DELIVERY
    * =========================================================
    */
   if (activeDelivery) {
-    const additionalPickers = activeDelivery.pickers.slice(1);
-
     return (
       <main className="min-h-screen bg-[#f7f7f6]">
         <div className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10">
-          <AttendanceCard
-            attendance={attendance}
-            isLoading={isLoadingAttendance}
-            isPunching={isPunching}
-            onPunchIn={handlePunchIn}
-            onPunchOut={handlePunchOut}
-          />
           <div className="mb-6">
             <p className="text-xs font-semibold tracking-wide text-[#f14902] uppercase">
               Active Delivery
@@ -447,29 +708,40 @@ export default function PickerPage() {
           </div>
 
           <div className="relative overflow-hidden rounded-lg border border-[#dedddb] bg-white shadow-sm">
-            {/* Active status indicator */}
             <div
               className="absolute top-4 right-4 flex items-center gap-2"
               aria-label="Delivery active"
             >
               <span className="relative flex h-3 w-3">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
               </span>
 
               <span className="text-xs font-medium text-green-700">Active</span>
             </div>
+
             <div className="border-b border-[#e5e4e2] px-5 py-5 sm:px-6">
               <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
-                Packlist Number
+                Reference Number
               </p>
 
               <p className="mt-1 text-2xl font-semibold tracking-wide text-[#393536]">
-                {activeDelivery.packlistNumber}
+                {activeDelivery.referenceNumber}
               </p>
             </div>
 
             <div className="divide-y divide-[#eeecea]">
+              <div className="px-5 py-4 sm:px-6">
+                <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
+                  Delivery Type
+                </p>
+
+                <p className="mt-1 text-sm font-medium text-[#393536]">
+                  {DELIVERY_TYPE_LABELS[activeDelivery.deliveryType]}
+                </p>
+              </div>
+
               <div className="px-5 py-4 sm:px-6">
                 <p className="text-xs font-medium tracking-wide text-[#777473] uppercase">
                   Started
@@ -526,12 +798,6 @@ export default function PickerPage() {
                       </div>
                     </div>
                   ))}
-
-                  {additionalPickers.length === 0 && (
-                    <p className="text-sm text-[#777473]">
-                      No additional picker assigned.
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -582,13 +848,6 @@ export default function PickerPage() {
   return (
     <main className="min-h-screen bg-[#f7f7f6]">
       <div className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10">
-        <AttendanceCard
-          attendance={attendance}
-          isLoading={isLoadingAttendance}
-          isPunching={isPunching}
-          onPunchIn={handlePunchIn}
-          onPunchOut={handlePunchOut}
-        />
         <div className="mb-6">
           <div className="flex items-center gap-2 text-xs font-medium text-[#777473]">
             <span className={step === 1 ? 'font-semibold text-[#f14902]' : ''}>
@@ -636,11 +895,11 @@ export default function PickerPage() {
           <div className="rounded-lg border border-[#dedddb] bg-white shadow-sm">
             <div className="border-b border-[#e5e4e2] px-6 py-5 sm:px-8 sm:py-6">
               <h1 className="text-xl font-semibold text-[#393536]">
-                Enter Packlist
+                Enter Delivery
               </h1>
 
               <p className="mt-1 text-sm text-[#6b6968]">
-                Enter the details from the packlist.
+                Enter the details for this warehouse movement.
               </p>
             </div>
 
@@ -649,41 +908,76 @@ export default function PickerPage() {
               className="px-6 py-6 sm:px-8 sm:py-8"
             >
               <div className="space-y-6">
+                {/*
+                 * Delivery Type
+                 */}
                 <div>
                   <label
-                    htmlFor="packlistNumber"
+                    htmlFor="deliveryType"
                     className="mb-2 block text-sm font-medium text-[#393536]"
                   >
-                    Packlist Number
+                    Delivery Type
+                  </label>
+
+                  <select
+                    id="deliveryType"
+                    value={deliveryType}
+                    onChange={(event) =>
+                      setDeliveryType(event.target.value as DeliveryType)
+                    }
+                    className="h-12 w-full rounded-md border border-[#cfcfcd] bg-white px-3 text-base text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+                  >
+                    <option value="INWARD">Inward</option>
+
+                    <option value="OUTWARD">Outward</option>
+
+                    <option value="MATERIAL_RETURN">Material Return</option>
+
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/*
+                 * Reference Number
+                 */}
+                <div>
+                  <label
+                    htmlFor="referenceNumber"
+                    className="mb-2 block text-sm font-medium text-[#393536]"
+                  >
+                    Reference Number
                   </label>
 
                   <input
-                    ref={packlistInputRef}
-                    id="packlistNumber"
-                    name="packlistNumber"
+                    ref={referenceInputRef}
+                    id="referenceNumber"
+                    name="referenceNumber"
                     type="text"
                     inputMode="text"
                     autoComplete="off"
-                    maxLength={8}
-                    value={packlistNumber}
+                    value={referenceNumber}
                     onChange={(event) => {
                       const value = event.target.value.toUpperCase();
 
                       if (/^[A-Za-z0-9]*$/.test(value)) {
-                        setPacklistNumber(value);
+                        setReferenceNumber(value);
                       }
                     }}
-                    placeholder="Enter 8-character packlist number"
+                    placeholder="Enter reference number"
                     required
                     autoFocus
                     className="h-12 w-full rounded-md border border-[#cfcfcd] px-3 text-base text-[#393536] uppercase transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
                   />
 
                   <p className="mt-1.5 text-xs text-[#777473]">
-                    Enter exactly 8 alphanumeric characters.
+                    Packlist number, invoice number, inbound number, LR number,
+                    or other reference.
                   </p>
                 </div>
 
+                {/*
+                 * Invoice quantity
+                 */}
                 <div>
                   <label
                     htmlFor="invoiceQuantity"
@@ -707,6 +1001,9 @@ export default function PickerPage() {
                   />
                 </div>
 
+                {/*
+                 * Gross weight
+                 */}
                 <div>
                   <label
                     htmlFor="grossWeight"
@@ -762,7 +1059,7 @@ export default function PickerPage() {
               </h1>
 
               <p className="mt-1 text-sm text-[#6b6968]">
-                Select an additional picker if required.
+                Select everyone participating in this delivery.
               </p>
             </div>
 
@@ -771,6 +1068,9 @@ export default function PickerPage() {
               className="px-6 py-6 sm:px-8 sm:py-8"
             >
               <div className="space-y-6">
+                {/*
+                 * Primary picker
+                 */}
                 <div>
                   <p className="mb-2 text-sm font-medium text-[#393536]">
                     Primary Picker
@@ -785,39 +1085,155 @@ export default function PickerPage() {
                   </div>
                 </div>
 
+                {/*
+                 * Selected additional pickers
+                 */}
+                {selectedPickerIds.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-[#393536]">
+                      Selected Additional Pickers ({selectedPickerIds.length})
+                    </p>
+
+                    <div className="space-y-2">
+                      {selectedPickerIds.map((pickerId) => {
+                        const picker = availablePickers.find(
+                          (item) => item.id === pickerId,
+                        );
+
+                        if (!picker) {
+                          return null;
+                        }
+
+                        return (
+                          <div
+                            key={picker.id}
+                            className="flex items-center justify-between rounded-md border border-[#ead8d0] bg-[#fff8f5] px-3 py-2.5"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-[#393536]">
+                                {picker.name}
+                              </p>
+
+                              {picker.phoneNumber && (
+                                <p className="text-xs text-[#777473]">
+                                  {picker.phoneNumber}
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => removePicker(picker.id)}
+                              className="cursor-pointer px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/*
+                 * Search and picker selection
+                 */}
                 <div>
                   <label
-                    htmlFor="additionalPicker"
+                    htmlFor="pickerSearch"
                     className="mb-2 block text-sm font-medium text-[#393536]"
                   >
-                    Additional Picker
+                    Add Pickers
                   </label>
 
-                  <select
-                    id="additionalPicker"
-                    value={selectedPickerId}
-                    onChange={(event) =>
-                      setSelectedPickerId(event.target.value)
-                    }
+                  <input
+                    id="pickerSearch"
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(event) => setPickerSearch(event.target.value)}
+                    placeholder="Search by name or phone number..."
                     disabled={isLoadingPickers}
-                    className="h-12 w-full rounded-md border border-[#cfcfcd] bg-white px-3 text-base text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15 disabled:bg-[#f7f7f6]"
-                  >
-                    <option value="">No additional picker</option>
+                    className="h-12 w-full rounded-md border border-[#cfcfcd] px-3 text-base text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15 disabled:bg-[#f7f7f6]"
+                  />
 
-                    {availablePickers.map((availablePicker) => (
-                      <option
-                        key={availablePicker.id}
-                        value={availablePicker.id}
-                      >
-                        {availablePicker.name}
-                      </option>
-                    ))}
-                  </select>
+                  {isLoadingPickers ? (
+                    <div className="mt-3 rounded-md border border-[#dedddb] px-4 py-5 text-center">
+                      <p className="text-sm text-[#6b6968]">
+                        Loading pickers...
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-3 max-h-72 overflow-y-auto rounded-md border border-[#dedddb]">
+                      {filteredPickers.length === 0 ? (
+                        <div className="px-4 py-6 text-center">
+                          <p className="text-sm text-[#6b6968]">
+                            {pickerSearch
+                              ? 'No pickers found.'
+                              : 'No pickers available.'}
+                          </p>
+                        </div>
+                      ) : (
+                        filteredPickers.map((picker) => {
+                          const isSelected = selectedPickerIds.includes(
+                            picker.id,
+                          );
+
+                          return (
+                            <button
+                              key={picker.id}
+                              type="button"
+                              onClick={() => togglePicker(picker.id)}
+                              className={`flex w-full cursor-pointer items-center justify-between border-b border-[#eeecea] px-4 py-3 text-left transition last:border-b-0 ${
+                                isSelected
+                                  ? 'bg-[#fff8f5]'
+                                  : 'bg-white hover:bg-[#f7f7f6]'
+                              }`}
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-[#393536]">
+                                  {picker.name}
+                                </p>
+
+                                {picker.phoneNumber && (
+                                  <p className="mt-0.5 text-xs text-[#777473]">
+                                    {picker.phoneNumber}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div
+                                className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                                  isSelected
+                                    ? 'border-[#f14902] bg-[#f14902] text-white'
+                                    : 'border-[#cfcfcd] bg-white'
+                                }`}
+                              >
+                                {isSelected ? '✓' : ''}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
 
                   <p className="mt-1.5 text-xs text-[#777473]">
-                    You can add one additional picker to this delivery.
+                    Search and select multiple pickers.
                   </p>
                 </div>
+
+                {deliveryType === 'INWARD' && (
+                  <div className="rounded-md border border-[#ead8d0] bg-[#fff8f5] px-4 py-3">
+                    <p className="text-sm font-medium text-[#393536]">
+                      Inward delivery
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-[#6b6968]">
+                      Inward deliveries require multiple pickers. Select at
+                      least one additional picker.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[#e5e4e2] pt-6 sm:flex-row sm:justify-between">
@@ -837,7 +1253,7 @@ export default function PickerPage() {
                   disabled={isLoadingPickers}
                   className="h-12 cursor-pointer rounded-md bg-[#f14902] px-6 text-sm font-semibold text-white transition hover:bg-[#d94000] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isLoadingPickers ? 'Loading...' : 'Review Delivery'}
+                  Review Delivery
                 </button>
               </div>
             </form>
@@ -863,7 +1279,12 @@ export default function PickerPage() {
 
             <div className="px-6 py-6 sm:px-8 sm:py-8">
               <div className="divide-y divide-[#eeecea] rounded-md border border-[#dedddb]">
-                <ReviewRow label="Packlist Number" value={packlistNumber} />
+                <ReviewRow
+                  label="Delivery Type"
+                  value={DELIVERY_TYPE_LABELS[deliveryType]}
+                />
+
+                <ReviewRow label="Reference Number" value={referenceNumber} />
 
                 <ReviewRow label="Invoice Quantity" value={invoiceQuantity} />
 
@@ -874,17 +1295,42 @@ export default function PickerPage() {
                     Delivery Team
                   </p>
 
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm font-medium text-[#393536]">You</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-md bg-[#f7f7f6] px-3 py-2.5">
+                      <p className="text-sm font-medium text-[#393536]">You</p>
 
-                    {selectedPickerId && (
-                      <p className="text-sm text-[#555251]">
-                        {availablePickers.find(
-                          (picker) => picker.id === selectedPickerId,
-                        )?.name ?? 'Additional picker'}
-                      </p>
-                    )}
+                      <p className="text-xs text-[#777473]">Primary picker</p>
+                    </div>
+
+                    {selectedPickerIds.map((pickerId) => {
+                      const picker = availablePickers.find(
+                        (item) => item.id === pickerId,
+                      );
+
+                      if (!picker) {
+                        return null;
+                      }
+
+                      return (
+                        <div
+                          key={picker.id}
+                          className="rounded-md bg-[#f7f7f6] px-3 py-2.5"
+                        >
+                          <p className="text-sm font-medium text-[#393536]">
+                            {picker.name}
+                          </p>
+
+                          <p className="text-xs text-[#777473]">
+                            Additional picker
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
+
+                  <p className="mt-3 text-xs text-[#777473]">
+                    Total pickers: {selectedPickerIds.length + 1}
+                  </p>
                 </div>
               </div>
 
@@ -1011,105 +1457,6 @@ function ConfirmationDialog({
             {isSubmitting ? 'Please wait...' : confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-function AttendanceCard({
-  attendance,
-  isLoading,
-  isPunching,
-  onPunchIn,
-  onPunchOut,
-}: {
-  attendance: Attendance | null;
-  isLoading: boolean;
-  isPunching: boolean;
-  onPunchIn: () => void;
-  onPunchOut: () => void;
-}) {
-  function formatTime(value: string) {
-    return new Date(value).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-
-  return (
-    <div className="mb-5 rounded-lg border border-[#dedddb] bg-white shadow-sm">
-      <div className="border-b border-[#e5e4e2] px-5 py-4 sm:px-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-[#393536]">Attendance</h2>
-
-            <p className="mt-1 text-xs text-[#777473]">Today's attendance</p>
-          </div>
-
-          {attendance && !attendance.punchedOutAt && (
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="px-5 py-5 sm:px-6">
-        {isLoading ? (
-          <p className="text-sm text-[#6b6968]">Checking attendance...</p>
-        ) : !attendance ? (
-          <>
-            <div>
-              <p className="text-sm font-medium text-[#393536]">
-                Not punched in
-              </p>
-
-              <p className="mt-1 text-xs text-[#777473]">
-                Punch in when you start work.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={onPunchIn}
-              disabled={isPunching}
-              className="mt-5 h-11 w-full cursor-pointer rounded-md bg-[#f14902] px-5 text-sm font-semibold text-white transition hover:bg-[#d94000] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPunching ? 'Punching In...' : 'Punch In'}
-            </button>
-          </>
-        ) : !attendance.punchedOutAt ? (
-          <>
-            <div>
-              <p className="text-sm font-medium text-[#393536]">Punched in</p>
-
-              <p className="mt-1 text-xs text-[#777473]">
-                Started at {formatTime(attendance.punchedInAt)}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={onPunchOut}
-              disabled={isPunching}
-              className="mt-5 h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-5 text-sm font-semibold text-[#393536] transition hover:bg-[#f7f7f6] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPunching ? 'Punching Out...' : 'Punch Out'}
-            </button>
-          </>
-        ) : (
-          <div>
-            <p className="text-sm font-medium text-[#393536]">
-              Attendance completed
-            </p>
-
-            <p className="mt-1 text-xs text-[#777473]">
-              In {formatTime(attendance.punchedInAt)} · Out{' '}
-              {formatTime(attendance.punchedOutAt)}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

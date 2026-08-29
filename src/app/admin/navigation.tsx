@@ -28,6 +28,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
   const isPacklistsPage = pathname.startsWith('/admin/packlists');
   const isPickersPage = pathname.startsWith('/admin/pickers');
   const isRstPage = pathname.startsWith('/admin/rst');
+  const isCompanyPage = pathname.startsWith('/admin/company');
 
   const isDashboardPage = !isPacklistsPage && !isPickersPage && !isRstPage;
 
@@ -78,6 +79,18 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
               }`}
             >
               Packlists
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push('/admin/company')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isCompanyPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Company
             </button>
 
             <button

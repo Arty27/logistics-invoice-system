@@ -45,7 +45,11 @@ export async function getCurrentUser() {
       tokenHash,
     },
     include: {
-      user: true,
+      user: {
+        include: {
+          company: true,
+        },
+      },
     },
   });
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDuration } from '@/lib/functions';
 import { Packlist, Picker } from '@/types/Packlist';
 
 function formatDateTime(value: string | null) {
@@ -69,11 +70,15 @@ export default function PacklistTable({ records }: PacklistTableProps) {
             <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
               <tr>
                 <th className="px-5 py-3 font-bold text-[#393536]">
-                  Packlist No.
+                  Reference No.
                 </th>
 
                 <th className="px-5 py-3 font-bold text-[#393536]">
                   Invoice Qty
+                </th>
+
+                <th className="px-5 py-3 font-bold text-[#393536]">
+                  Delivery Type
                 </th>
 
                 <th className="px-5 py-3 font-bold text-[#393536]">
@@ -88,6 +93,10 @@ export default function PacklistTable({ records }: PacklistTableProps) {
                   Completed
                 </th>
 
+                <th className="px-5 py-3 font-bold text-[#393536]">
+                  Time Taken
+                </th>
+
                 <th className="px-5 py-3 font-bold text-[#393536]">Pickers</th>
               </tr>
             </thead>
@@ -99,11 +108,15 @@ export default function PacklistTable({ records }: PacklistTableProps) {
                   className="border-b border-[#eeecea] last:border-0"
                 >
                   <td className="px-5 py-3 font-medium text-[#393536]">
-                    {record.packlistNumber}
+                    {record.referenceNumber}
                   </td>
 
                   <td className="px-5 py-3 text-[#555251]">
                     {record.invoiceQuantity}
+                  </td>
+
+                  <td className="px-5 py-3 text-[#555251]">
+                    {record.deliveryType}
                   </td>
 
                   <td className="px-5 py-3 text-[#555251]">
@@ -128,6 +141,10 @@ export default function PacklistTable({ records }: PacklistTableProps) {
                     {formatDateTime(record.completedAt)}
                   </td>
 
+                  <td className="px-5 py-3 text-[#6b6968]">
+                    {formatDuration(record.startedAt, record.completedAt)}
+                  </td>
+
                   <td className="px-5 py-3 text-[#555251]">
                     {getPickerNames(record.pickers)}
                   </td>
@@ -140,14 +157,16 @@ export default function PacklistTable({ records }: PacklistTableProps) {
         {/* Mobile cards */}
         <div className="divide-y divide-[#eeecea] md:hidden">
           {records.map((record) => (
-            <div key={record.id} className="p-5">
+            <div key={record.id} className="border-2 border-b-black p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-base font-semibold text-[#393536]">
-                    {record.packlistNumber}
+                    {record.referenceNumber}
                   </p>
 
-                  <p className="mt-1 text-xs text-[#777473]">Packlist</p>
+                  <p className="mt-1 text-xs text-[#777473]">
+                    Reference Number
+                  </p>
                 </div>
 
                 <span
@@ -177,7 +196,7 @@ export default function PacklistTable({ records }: PacklistTableProps) {
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4">
+              <div className="mt-5 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-[#777473]">Started</p>
 
@@ -191,6 +210,26 @@ export default function PacklistTable({ records }: PacklistTableProps) {
 
                   <p className="mt-1 text-sm text-[#555251]">
                     {formatDateTime(record.completedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-[#777473]">Time Taken</p>
+
+                  <p className="mt-1 text-sm text-[#555251]">
+                    {formatDuration(record.startedAt, record.completedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-[#777473]">Delivery Type</p>
+
+                  <p className="mt-1 text-sm text-[#555251]">
+                    {record.deliveryType}
                   </p>
                 </div>
               </div>

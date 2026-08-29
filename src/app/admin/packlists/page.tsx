@@ -1,7 +1,7 @@
 'use client';
 
 import PacklistTable from '@/components/PacklistTable';
-import { splitEvenly } from '@/lib/functions';
+import { formatDuration, splitEvenly } from '@/lib/functions';
 import { Packlist } from '@/types/Packlist';
 import ExcelJS from 'exceljs';
 import { useState } from 'react';
@@ -84,8 +84,8 @@ export default function AdminPacklistsPage() {
           width: 22,
         },
         {
-          header: 'Packlist No.',
-          key: 'packlistNumber',
+          header: 'Reference No.',
+          key: 'referenceNumber',
           width: 18,
           style: {
             numFmt: '@',
@@ -95,6 +95,11 @@ export default function AdminPacklistsPage() {
           header: 'Invoice Qty',
           key: 'invoiceQuantity',
           width: 15,
+        },
+        {
+          header: 'Delivery Type',
+          key: 'deliveryType',
+          width: 18,
         },
         {
           header: 'Total Gross Weight',
@@ -117,6 +122,11 @@ export default function AdminPacklistsPage() {
           width: 15,
         },
         {
+          header: 'Time Taken',
+          key: 'duration',
+          width: 15,
+        },
+        {
           header: 'Picker',
           key: 'picker',
           width: 25,
@@ -133,14 +143,21 @@ export default function AdminPacklistsPage() {
       for (const record of records) {
         let noOfPickers = record.pickers.length;
         let invoiceArr = splitEvenly(record.invoiceQuantity, noOfPickers);
+        let grossWeight =
+          record.deliveryType === 'INWARD'
+            ? Number(record.perPersonWeight)
+            : Number(record.grossWeight) / record.pickers.length;
         record.pickers.map((picker, i) => {
           worksheet.addRow({
             createdAt: new Date(record.createdAt),
             packlistNumber: String(record.packlistNumber),
+            referenceNumber: String(record.referenceNumber),
+            deliveryType: record.deliveryType,
             invoiceQuantity: invoiceArr[i],
-            grossWeight: Number(record.grossWeight) / record.pickers.length,
+            grossWeight: grossWeight,
             status: record.status,
             startedAt: record.startedAt,
+            duration: formatDuration(record.startedAt, record.completedAt),
             completedAt: record.completedAt,
             picker: picker.name,
             phoneNumber: String(picker.phoneNumber),
