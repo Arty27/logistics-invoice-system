@@ -234,6 +234,7 @@ export async function POST(request: Request) {
         skuCode,
         quantity,
         enteredById: admin.id,
+        companyId: '1',
       },
 
       select: {
