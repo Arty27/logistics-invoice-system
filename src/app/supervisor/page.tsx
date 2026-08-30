@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Loading from '@/components/Loading';
+import { launchConfetti } from '@/lib/confetti';
 
 type User = {
   id: string;
@@ -300,6 +301,7 @@ export default function SupervisorPage() {
        * returned by the server.
        */
       setCompletedVerification(data.verification);
+      launchConfetti();
 
       /*
        * There is no longer an active verification.

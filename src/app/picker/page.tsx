@@ -6,6 +6,7 @@ import DeliveryStep1 from '@/components/DeliveryForm/DeliveryStep1';
 import DeliveryStep2 from '@/components/DeliveryForm/DeliveryStep2';
 import DeliveryStep3 from '@/components/DeliveryForm/DeliveryStep3';
 import Loading from '@/components/Loading';
+import { launchConfetti } from '@/lib/confetti';
 import { Packlist, Picker } from '@/types/Packlist';
 import { DeliveryType } from '@/types/types';
 import { useEffect, useRef, useState } from 'react';
@@ -267,6 +268,7 @@ export default function PickerPage() {
        * - Delivery team
        */
       setCompletedDelivery(data.packlist);
+      launchConfetti();
       setActiveDelivery(null);
       setShowCompleteConfirmation(false);
     } catch {
