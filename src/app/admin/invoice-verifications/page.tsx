@@ -89,7 +89,7 @@ export default function AdminInvoiceVerificationsPage() {
     setIsLoadingSupervisors(true);
 
     try {
-      const response = await fetch('/api/supervisors', {
+      const response = await fetch('/api/supervisor', {
         cache: 'no-store',
       });
 

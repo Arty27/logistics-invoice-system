@@ -17,7 +17,7 @@ type MeResponse = {
 };
 
 const routes = {
-  ADMIN: '/admin/dashboard',
+  ADMIN: '/admin',
   PICKER: '/picker',
   SUPERVISOR: '/supervisor',
 } as const;

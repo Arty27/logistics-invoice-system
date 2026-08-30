@@ -6,7 +6,6 @@ import ExcelJS from 'exceljs';
 type RstEntry = {
   id: string;
   skuCode: string;
-  companyName: string;
   quantity: number;
   enteredAt: string;
   enteredBy: {
@@ -398,7 +397,7 @@ export default function RstPage() {
           ADD STOCK
           ===================================================== */}
 
-      {/* <section className="mb-8 rounded-lg border border-[#dedddb] bg-white shadow-sm">
+      <section className="mb-8 rounded-lg border border-[#dedddb] bg-white shadow-sm">
         <div className="border-b border-[#e5e4e2] px-6 py-5">
           <h2 className="text-sm font-semibold text-[#393536]">Add Stock</h2>
 
@@ -482,7 +481,7 @@ export default function RstPage() {
             </button>
           </div>
         </form>
-      </section> */}
+      </section>
 
       {/* =====================================================
           FILTERS
@@ -594,9 +593,6 @@ export default function RstPage() {
               <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
                 <tr>
                   <th className="px-5 py-3 font-bold text-[#393536]">
-                    Company
-                  </th>
-                  <th className="px-5 py-3 font-bold text-[#393536]">
                     SKU Code
                   </th>
 
@@ -620,9 +616,6 @@ export default function RstPage() {
                     key={entry.id}
                     className="border-b border-[#eeecea] last:border-0"
                   >
-                    <td className="px-5 py-3 font-medium text-[#393536]">
-                      {entry.companyName}
-                    </td>
                     <td className="px-5 py-3 font-medium text-[#393536]">
                       {entry.skuCode}
                     </td>

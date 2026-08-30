@@ -12,7 +12,7 @@ export default async function SupervisorLayout({
   const user = await requireUser();
 
   if (user.role === 'ADMIN') {
-    redirect('/admin/dashboard');
+    redirect('/admin');
   }
 
   if (user.role === 'PICKER') {

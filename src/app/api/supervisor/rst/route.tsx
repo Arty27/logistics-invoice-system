@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAdmin } from '@/server/auth/authorization';
+import { requireSupervisor } from '@/server/auth/authorization';
 import { ForbiddenError, UnauthorizedError } from '@/server/common/error';
 import { prisma } from '@/server/db/prisma';
 
@@ -24,7 +24,7 @@ function getIndiaDateRange(date: string) {
 
 export async function GET(request: Request) {
   try {
-    await requireAdmin();
+    const user = await requireSupervisor();
 
     const { searchParams } = new URL(request.url);
 
@@ -129,6 +129,7 @@ export async function GET(request: Request) {
           gte: start,
           lt: end,
         },
+        companyId: user.companyId!,
       },
 
       select: {
@@ -136,11 +137,7 @@ export async function GET(request: Request) {
         skuCode: true,
         quantity: true,
         enteredAt: true,
-        company: {
-          select: {
-            name: true,
-          },
-        },
+
         enteredBy: {
           select: {
             id: true,
@@ -164,7 +161,6 @@ export async function GET(request: Request) {
       data: entries.map((entry) => ({
         id: entry.id,
         skuCode: entry.skuCode,
-        companyName: entry.company?.name,
         quantity: entry.quantity,
         enteredAt: entry.enteredAt,
         enteredBy: entry.enteredBy,
@@ -209,7 +205,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const admin = await requireAdmin();
+    const supervisor = await requireSupervisor();
 
     const body = await request.json();
 
@@ -238,8 +234,8 @@ export async function POST(request: Request) {
       data: {
         skuCode,
         quantity,
-        enteredById: admin.id,
-        companyId: '0',
+        enteredById: supervisor.id,
+        companyId: supervisor.companyId!,
       },
 
       select: {

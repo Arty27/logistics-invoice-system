@@ -12,7 +12,7 @@ export default async function PickerLayout({
   const user = await requireUser();
 
   if (user.role === 'ADMIN') {
-    redirect('/admin/dashboard');
+    redirect('/admin');
   }
 
   if (user.role === 'SUPERVISOR') {

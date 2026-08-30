@@ -20,6 +20,16 @@ export async function requireAdmin() {
   return user;
 }
 
+export async function requireSupervisor() {
+  const user = await requireUser();
+
+  if (user.role !== UserRole.SUPERVISOR) {
+    throw new ForbiddenError();
+  }
+
+  return user;
+}
+
 export async function requirePicker() {
   const user = await requireUser();
 
