@@ -83,14 +83,14 @@ export default function PickerNavigation({ user }: PickerNavigationProps) {
 
           {/* User */}
           <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
+            <div className="text-right sm:block">
               <p className="max-w-[180px] truncate text-sm font-medium">
                 {user?.company?.name}
               </p>
 
               <p className="text-xs text-white/75">Company</p>
             </div>
-            <div className="hidden text-right sm:block">
+            <div className="text-right sm:block">
               <p className="max-w-[180px] truncate text-sm font-medium">
                 {user.name}
               </p>

@@ -2,7 +2,11 @@ export type Picker = {
   id: string;
   name: string;
   phoneNumber: string;
+  company: {
+    name: string;
+  } | null;
   role: 'ADMIN' | 'PICKER' | 'SUPERVISOR';
+  isActive: boolean;
 };
 
 export type Packlist = {

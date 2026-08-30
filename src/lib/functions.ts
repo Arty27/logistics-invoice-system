@@ -31,5 +31,5 @@ export function formatDuration(
 
   const seconds = differenceInSeconds % 60;
 
-  return `${hours} ${hours === 1 ? 'hour' : 'hours'} ${minutes} mins ${seconds} seconds`;
+  return `${hours} h ${minutes} m ${seconds} s`;
 }
