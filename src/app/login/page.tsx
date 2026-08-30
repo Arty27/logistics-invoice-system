@@ -16,6 +16,14 @@ type MeResponse = {
   user?: CurrentUser;
 };
 
+const routes = {
+  ADMIN: '/admin/dashboard',
+  PICKER: '/picker',
+  SUPERVISOR: '/supervisor',
+} as const;
+
+type UserRole = keyof typeof routes;
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -66,11 +74,8 @@ export default function LoginPage() {
            * Use replace() so /login is not kept in
            * the browser history.
            */
-          if (data.user.role === 'ADMIN') {
-            router.replace('/admin');
-          } else {
-            router.replace('/picker');
-          }
+          const role = data.user.role as UserRole;
+          router.replace(routes[role]);
 
           return;
         }
@@ -124,11 +129,8 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.user.role === 'ADMIN') {
-        router.replace('/admin');
-      } else {
-        router.replace('/picker');
-      }
+      const role = data.user.role as UserRole;
+      router.replace(routes[role]);
     } catch {
       setError('Unable to connect to the server. Please try again.');
     } finally {

@@ -29,8 +29,10 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
   const isPickersPage = pathname.startsWith('/admin/pickers');
   const isRstPage = pathname.startsWith('/admin/rst');
   const isCompanyPage = pathname.startsWith('/admin/company');
+  const isInvoicePage = pathname.startsWith('/admin/invoice-verifications');
 
-  const isDashboardPage = !isPacklistsPage && !isPickersPage && !isRstPage;
+  const isDashboardPage =
+    !isPacklistsPage && !isPickersPage && !isRstPage && !isInvoicePage;
 
   return (
     <header className="bg-[#f14902] text-white shadow-sm">
@@ -103,6 +105,17 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
               }`}
             >
               RST
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/admin/invoice-verifications')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isInvoicePage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Verified Invoices
             </button>
 
             <button
@@ -184,6 +197,17 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
               }`}
             >
               RST
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/admin/invoice-verifications')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isInvoicePage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              Invoices
             </button>
 
             <button
