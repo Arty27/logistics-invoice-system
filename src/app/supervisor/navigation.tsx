@@ -31,7 +31,8 @@ export default function SupervisorNavigation({
   }
 
   const isRecordsPage = pathname.startsWith('/supervisor/records');
-  const isEnterPacklistPage = !isRecordsPage;
+  const isRstPage = pathname.startsWith('/supervisor/rst');
+  const isEnterPacklistPage = !isRecordsPage && !isRstPage;
 
   return (
     <header className="bg-[#f14902] text-white shadow-sm">
@@ -80,6 +81,17 @@ export default function SupervisorNavigation({
               }`}
             >
               My Records
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/supervisor/rst')}
+              className={`flex h-full cursor-pointer items-center border-b-2 px-3 text-sm font-medium ${
+                isRstPage
+                  ? 'border-white'
+                  : 'border-transparent hover:bg-[#d94000]'
+              }`}
+            >
+              RST
             </button>
           </nav>
 

@@ -79,7 +79,7 @@ export default function RstPage() {
       const query = params.toString();
 
       const response = await fetch(
-        `/api/admin/rst${query ? `?${query}` : ''}`,
+        `/api/supervisor/rst${query ? `?${query}` : ''}`,
         {
           method: 'GET',
           cache: 'no-store',
@@ -143,7 +143,7 @@ export default function RstPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/admin/rst', {
+      const response = await fetch('/api/supervisor/rst', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
