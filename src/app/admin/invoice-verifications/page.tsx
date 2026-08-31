@@ -511,7 +511,7 @@ export default function AdminInvoiceVerificationsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px] text-left text-sm">
+            <table className="w-full min-w-300 text-left text-sm">
               <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
                 <tr>
                   <th className="px-5 py-3 font-bold text-[#393536]">
@@ -627,7 +627,7 @@ export default function AdminInvoiceVerificationsPage() {
                       {formatDateTime(verification.completedAt)}
                     </td>
 
-                    <td className="max-w-[280px] px-5 py-4 text-[#555251]">
+                    <td className="max-w-70 px-5 py-4 text-[#555251]">
                       <span
                         className="block truncate"
                         title={verification.remarks ?? ''}

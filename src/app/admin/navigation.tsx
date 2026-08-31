@@ -55,7 +55,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
                 alt="Tatvashree Logistics logo"
                 width={34}
                 height={34}
-                className="h-[34px] w-[34px] object-contain"
+                className="h-8.5 w-8.5 object-contain"
                 priority
               />
             </div>
@@ -138,7 +138,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
           {/* User */}
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
-              <p className="max-w-[180px] truncate text-sm font-medium">
+              <p className="max-w-45 truncate text-sm font-medium">
                 {user.name}
               </p>
 
