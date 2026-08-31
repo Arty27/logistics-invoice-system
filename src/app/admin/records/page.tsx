@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ExcelJS from 'exceljs';
-import { getDate, getTime } from '@/lib/functions';
+import { formatDuration, getDate, getTime } from '@/lib/functions';
 
 type Company = {
   id: string;
@@ -46,8 +46,8 @@ type AdminRecord = {
 
   status: string;
 
-  startedAt?: string | null;
-  completedAt?: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
   createdAt: string;
 
   user: {
@@ -466,6 +466,11 @@ export default function AdminInvoiceVerificationsPage() {
           width: 16,
         },
         {
+          header: 'Duration',
+          key: 'duration',
+          width: 24,
+        },
+        {
           header: 'Start Date',
           key: 'startDate',
           width: 24,
@@ -516,6 +521,7 @@ export default function AdminInvoiceVerificationsPage() {
           remarks: record.remarks ?? '',
 
           status: record.status,
+          duration: formatDuration(record.startedAt, record.completedAt),
 
           startDate: getDate(record.startedAt),
           startTime: getTime(record.startedAt),
@@ -854,7 +860,7 @@ export default function AdminInvoiceVerificationsPage() {
                  ================================================= */
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1100px] border-collapse">
+                <table className="w-full min-w-275 border-collapse">
                   <thead>
                     <tr className="border-b border-[#dedddb] bg-[#fafafa]">
                       <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-[#6b6968] uppercase">
