@@ -18,7 +18,7 @@ const adminRoutes = [
   },
   { id: 3, label: 'RST', route: '/admin/rst', isDefault: false },
   { id: 4, label: 'Company', route: '/admin/company', isDefault: false },
-  { id: 5, label: 'Members', route: '/admin/picker', isDefault: false },
+  { id: 5, label: 'Members', route: '/admin/pickers', isDefault: false },
 ];
 
 export default function AdminNavigation({ user }: AdminNavigationProps) {
