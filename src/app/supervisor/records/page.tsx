@@ -124,7 +124,7 @@ export default function SupervisorRecordsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
+            <table className="w-full min-w-262 text-left text-sm">
               <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
                 <tr>
                   <th className="px-5 py-3 font-bold text-[#393536]">
