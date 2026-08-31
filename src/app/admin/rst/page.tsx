@@ -2,10 +2,13 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
+import Loading from '@/components/Loading';
+import { getDate, getTime } from '@/lib/functions';
 
 type RstEntry = {
   id: string;
   skuCode: string;
+  companyName: string;
   quantity: number;
   enteredAt: string;
   enteredBy: {
@@ -261,8 +264,13 @@ export default function RstPage() {
           width: 25,
         },
         {
-          header: 'Entered At',
-          key: 'enteredAt',
+          header: 'Entered Date',
+          key: 'enteredDate',
+          width: 25,
+        },
+        {
+          header: 'Entered Time',
+          key: 'enteredTime',
           width: 25,
         },
       ];
@@ -288,14 +296,15 @@ export default function RstPage() {
           skuCode: entry.skuCode,
           quantity: entry.quantity,
           enteredBy: entry.enteredBy.name,
-          enteredAt: new Date(entry.enteredAt),
+          enteredDate: getDate(entry.enteredAt),
+          enteredTime: getTime(entry.enteredAt),
         });
       });
 
       /*
        * Date formatting
        */
-      worksheet.getColumn('enteredAt').numFmt = 'dd/mm/yyyy hh:mm:ss';
+      worksheet.getColumn('enteredDate').numFmt = 'dd/mm/yyyy';
 
       /*
        * Total quantity
@@ -309,7 +318,8 @@ export default function RstPage() {
         skuCode: 'TOTAL',
         quantity: totalQuantity,
         enteredBy: '',
-        enteredAt: '',
+        enteredDate: '',
+        enteredTime: '',
       });
 
       totalRow.font = {
@@ -397,7 +407,7 @@ export default function RstPage() {
           ADD STOCK
           ===================================================== */}
 
-      <section className="mb-8 rounded-lg border border-[#dedddb] bg-white shadow-sm">
+      {/* <section className="mb-8 rounded-lg border border-[#dedddb] bg-white shadow-sm">
         <div className="border-b border-[#e5e4e2] px-6 py-5">
           <h2 className="text-sm font-semibold text-[#393536]">Add Stock</h2>
 
@@ -481,7 +491,7 @@ export default function RstPage() {
             </button>
           </div>
         </form>
-      </section>
+      </section> */}
 
       {/* =====================================================
           FILTERS
@@ -574,9 +584,7 @@ export default function RstPage() {
         </div>
 
         {isLoading ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-[#6b6968]">Loading RST entries...</p>
-          </div>
+          <Loading />
         ) : entries.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm font-medium text-[#393536]">
@@ -592,6 +600,9 @@ export default function RstPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-[#dedddb] bg-[#f7f7f6]">
                 <tr>
+                  <th className="px-5 py-3 font-bold text-[#393536]">
+                    Company
+                  </th>
                   <th className="px-5 py-3 font-bold text-[#393536]">
                     SKU Code
                   </th>
@@ -616,6 +627,9 @@ export default function RstPage() {
                     key={entry.id}
                     className="border-b border-[#eeecea] last:border-0"
                   >
+                    <td className="px-5 py-3 font-medium text-[#393536]">
+                      {entry.companyName}
+                    </td>
                     <td className="px-5 py-3 font-medium text-[#393536]">
                       {entry.skuCode}
                     </td>

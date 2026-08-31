@@ -17,10 +17,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id: packlistId } = await context.params;
 
     /*
-     * The picker must be assigned to this packlist.
-     *
-     * We deliberately use PacklistPicker rather than the
-     * legacy PacklistEntry.pickerId relationship.
+     * The picker must be assigned to this delivery.
      */
     const assignment = await prisma.packlistPicker.findUnique({
       where: {
@@ -33,10 +30,11 @@ export async function POST(request: Request, context: RouteContext) {
         packlist: {
           select: {
             id: true,
-            packlistNumber: true,
+            referenceNumber: true,
             invoiceQuantity: true,
             grossWeight: true,
             status: true,
+            deliveryType: true,
             startedAt: true,
             completedAt: true,
             createdAt: true,
@@ -71,6 +69,25 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    /*
+     * A delivery must have a start time before
+     * it can be completed.
+     */
+    if (!packlist.startedAt) {
+      return NextResponse.json(
+        {
+          error: 'This delivery does not have a valid start time.',
+        },
+        { status: 409 },
+      );
+    }
+
+    /*
+     * Server-side completion timestamp.
+     *
+     * This is the source of truth for calculating
+     * how long the delivery took.
+     */
     const completedAt = new Date();
 
     /*
@@ -88,13 +105,31 @@ export async function POST(request: Request, context: RouteContext) {
         },
         select: {
           id: true,
-          packlistNumber: true,
+          referenceNumber: true,
           invoiceQuantity: true,
           grossWeight: true,
           status: true,
+          deliveryType: true,
           startedAt: true,
           completedAt: true,
           createdAt: true,
+
+          /*
+           * Fetch all pickers assigned to this delivery.
+           */
+          pickers: {
+            select: {
+              picker: {
+                select: {
+                  id: true,
+                  name: true,
+                  phoneNumber: true,
+                  role: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -117,17 +152,66 @@ export async function POST(request: Request, context: RouteContext) {
       return updatedPacklist;
     });
 
+    /*
+     * Convert the Prisma PacklistPicker structure:
+     *
+     * [
+     *   { picker: {...} },
+     *   { picker: {...} }
+     * ]
+     *
+     * into the structure expected by the UI:
+     *
+     * [
+     *   {...},
+     *   {...}
+     * ]
+     */
+    const pickers = completedPacklist.pickers.map(
+      (assignment) => assignment.picker,
+    );
+
+    /*
+     * Calculate duration in seconds.
+     *
+     * The server timestamps are used, so the client
+     * cannot manipulate the duration.
+     */
+    const durationSeconds = Math.max(
+      0,
+      Math.floor(
+        (completedPacklist.completedAt!.getTime() -
+          completedPacklist.startedAt!.getTime()) /
+          1000,
+      ),
+    );
+
     return NextResponse.json({
       success: true,
+
       packlist: {
         id: completedPacklist.id,
-        packlistNumber: completedPacklist.packlistNumber,
+        referenceNumber: completedPacklist.referenceNumber,
         invoiceQuantity: completedPacklist.invoiceQuantity,
         grossWeight: completedPacklist.grossWeight.toString(),
         status: completedPacklist.status,
+        deliveryType: completedPacklist.deliveryType,
         startedAt: completedPacklist.startedAt,
         completedAt: completedPacklist.completedAt,
         createdAt: completedPacklist.createdAt,
+
+        /*
+         * All pickers participating in the delivery.
+         */
+        pickers,
+
+        /*
+         * Total time taken by the delivery in seconds.
+         *
+         * Example:
+         * 2720 seconds = 45 minutes 20 seconds
+         */
+        durationSeconds,
       },
     });
   } catch (error) {

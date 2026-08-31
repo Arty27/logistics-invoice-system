@@ -1,5 +1,6 @@
 'use client';
 
+import Loading from '@/components/Loading';
 import PacklistTable from '@/components/PacklistTable';
 import { Packlist } from '@/types/Packlist';
 import { useEffect, useState } from 'react';
@@ -86,11 +87,7 @@ export default function AdminPage() {
   }, []);
 
   if (isLoading) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <p className="text-sm text-[#6b6968]">Loading dashboard...</p>
-      </main>
-    );
+    return <Loading />;
   }
 
   if (error) {

@@ -136,7 +136,11 @@ export async function GET(request: Request) {
         skuCode: true,
         quantity: true,
         enteredAt: true,
-
+        company: {
+          select: {
+            name: true,
+          },
+        },
         enteredBy: {
           select: {
             id: true,
@@ -160,6 +164,7 @@ export async function GET(request: Request) {
       data: entries.map((entry) => ({
         id: entry.id,
         skuCode: entry.skuCode,
+        companyName: entry.company?.name,
         quantity: entry.quantity,
         enteredAt: entry.enteredAt,
         enteredBy: entry.enteredBy,
@@ -234,6 +239,7 @@ export async function POST(request: Request) {
         skuCode,
         quantity,
         enteredById: admin.id,
+        companyId: '0',
       },
 
       select: {

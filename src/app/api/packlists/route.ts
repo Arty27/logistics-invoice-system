@@ -7,51 +7,28 @@ import { requirePicker, requireUser } from '@/server/auth/authorization';
 import { prisma } from '@/server/db/prisma';
 
 const packlistSchema = z.object({
-  packlistNumber: z
+  referenceNumber: z
     .string()
-    .min(1, 'Packlist number is required')
+    .trim()
+    .min(1, 'Reference number is required.')
+    .max(100, 'Reference number is too long.')
     .regex(
-      /^[A-Za-z0-9]{8}$/,
-      'Packlist number must contain exactly 8 alphanumeric characters',
+      /^[A-Za-z0-9]+$/,
+      'Reference number must contain only letters and numbers.',
     ),
 
-  invoiceQuantity: z
-    .union([z.string(), z.number()])
-    .transform((value) => (value === '' ? NaN : Number(value)))
-    .pipe(
-      z
-        .number({
-          message: 'Invoice quantity is required',
-        })
-        .int('Invoice quantity must be a whole number')
-        .positive('Invoice quantity must be greater than zero'),
-    ),
+  deliveryType: z.enum(['INWARD', 'OUTWARD', 'MATERIAL_RETURN', 'OTHER']),
 
-  grossWeight: z
-    .string()
-    .min(1, 'Gross weight is required')
-    .regex(
-      /^\d+(\.\d{1,2})?$/,
-      'Gross weight must have at most 2 decimal places',
-    )
-    .refine((value) => Number(value) > 0, {
-      message: 'Gross weight must be greater than zero',
-    }),
+  invoiceQuantity: z.coerce.number().int().positive(),
 
-  /*
-   * API supports multiple additional pickers.
-   *
-   * The UI currently limits this to one additional picker.
-   */
-  additionalPickerIds: z
-    .array(z.uuid('Invalid picker ID'))
-    .optional()
-    .default([]),
+  grossWeight: z.coerce.number().positive(),
 });
 
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format');
+
+const CURRENT_CALCULATION_VERSION = 1;
 
 export async function POST(request: Request) {
   try {
@@ -64,21 +41,40 @@ export async function POST(request: Request) {
     if (!result.success) {
       return NextResponse.json(
         {
-          error: 'Invalid packlist data',
+          error: 'Invalid delivery data',
           details: result.error.flatten().fieldErrors,
         },
         { status: 400 },
       );
     }
 
-    const { packlistNumber, invoiceQuantity, grossWeight } = result.data;
+    const { referenceNumber, invoiceQuantity, grossWeight, deliveryType } =
+      result.data;
 
     /*
-     * Additional pickers are supplied by the UI.
+     * ---------------------------------------------------------
+     * COMPANY
+     * ---------------------------------------------------------
      *
-     * The database supports multiple additional pickers,
-     * while the UI currently limits this to one.
+     * The company is NEVER accepted from the frontend.
+     *
+     * It comes from the authenticated picker.
      */
+    if (!picker.companyId) {
+      return NextResponse.json(
+        {
+          error: 'Your account is not assigned to a company.',
+        },
+        { status: 403 },
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * ADDITIONAL PICKERS
+     * ---------------------------------------------------------
+     */
+
     const additionalPickerIds: string[] = Array.isArray(
       body.additionalPickerIds,
     )
@@ -86,45 +82,38 @@ export async function POST(request: Request) {
       : [];
 
     /*
-     * Remove duplicates.
-     *
-     * This also prevents the primary picker from accidentally
-     * being included twice if the client sends it as an
-     * additional picker.
+     * Remove duplicates and prevent the primary picker from
+     * being added again as an additional picker.
      */
     const uniqueAdditionalPickerIds = [...new Set(additionalPickerIds)].filter(
       (id) => id !== picker.id,
     );
 
     /*
-     * All pickers participating in this delivery.
+     * All participating picker IDs.
      *
-     * Sorting is important because every transaction acquires
-     * locks in the same order, reducing the possibility of
-     * deadlocks when two deliveries involve overlapping pickers.
+     * Sorting is important because every transaction obtains
+     * User row locks in exactly the same order.
      */
     const pickerIds = [picker.id, ...uniqueAdditionalPickerIds].sort();
+
     let additionalPickers: Array<{
       id: string;
       name: string;
-      role: 'ADMIN' | 'PICKER';
+      role: 'ADMIN' | 'SUPERVISOR' | 'PICKER';
       phoneNumber: string;
       isActive: boolean;
+      companyId: string | null;
     }> = [];
 
     const packlist = await prisma.$transaction(
       async (tx) => {
         /*
-         * =========================================================
+         * =====================================================
          * 1. LOCK ALL INVOLVED PICKERS
-         * =========================================================
-         *
-         * PostgreSQL FOR UPDATE locks these User rows until the
-         * transaction commits or rolls back.
-         *
-         * This is the important part that prevents two concurrent
-         * requests from both passing the "picker is free" check.
+         * =====================================================
          */
+
         await tx.$queryRaw(
           Prisma.sql`
             SELECT "id"
@@ -135,12 +124,9 @@ export async function POST(request: Request) {
         );
 
         /*
-         * =========================================================
+         * =====================================================
          * 2. VALIDATE ADDITIONAL PICKERS
-         * =========================================================
-         *
-         * The User rows are already locked, so their state cannot
-         * change underneath this transaction.
+         * =====================================================
          */
 
         if (uniqueAdditionalPickerIds.length > 0) {
@@ -156,25 +142,29 @@ export async function POST(request: Request) {
               role: true,
               phoneNumber: true,
               isActive: true,
+              companyId: true,
             },
           });
 
           /*
-           * Make sure every requested picker exists.
+           * Every requested picker must exist.
            */
           if (additionalPickers.length !== uniqueAdditionalPickerIds.length) {
             throw new Error('ADDITIONAL_PICKER_NOT_FOUND');
           }
 
           /*
-           * Make sure every additional picker is:
+           * Every additional picker must:
            *
-           * - a PICKER
-           * - active
+           * - be a PICKER
+           * - be active
+           * - belong to the same company
            */
           const invalidPicker = additionalPickers.find(
             (additionalPicker) =>
-              additionalPicker.role !== 'PICKER' || !additionalPicker.isActive,
+              additionalPicker.role !== 'PICKER' ||
+              !additionalPicker.isActive ||
+              additionalPicker.companyId !== picker.companyId,
           );
 
           if (invalidPicker) {
@@ -183,15 +173,11 @@ export async function POST(request: Request) {
         }
 
         /*
-         * =========================================================
+         * =====================================================
          * 3. CHECK PRIMARY PICKER
-         * =========================================================
-         *
-         * The primary picker's User row is already locked.
-         *
-         * Therefore another concurrent delivery cannot get past
-         * the same lock until this transaction finishes.
+         * =====================================================
          */
+
         const primaryActiveDelivery = await tx.packlistPicker.findFirst({
           where: {
             pickerId: picker.id,
@@ -202,7 +188,8 @@ export async function POST(request: Request) {
           select: {
             packlist: {
               select: {
-                packlistNumber: true,
+                id: true,
+                referenceNumber: true,
               },
             },
           },
@@ -210,19 +197,16 @@ export async function POST(request: Request) {
 
         if (primaryActiveDelivery) {
           throw new Error(
-            `PRIMARY_PICKER_BUSY:${primaryActiveDelivery.packlist.packlistNumber}`,
+            `PRIMARY_PICKER_BUSY:${primaryActiveDelivery.packlist.referenceNumber}`,
           );
         }
 
         /*
-         * =========================================================
+         * =====================================================
          * 4. CHECK ADDITIONAL PICKERS
-         * =========================================================
-         *
-         * Because their User rows are also locked, two concurrent
-         * delivery requests cannot both successfully assign the
-         * same picker.
+         * =====================================================
          */
+
         if (uniqueAdditionalPickerIds.length > 0) {
           const busyAdditionalPicker = await tx.packlistPicker.findFirst({
             where: {
@@ -237,7 +221,7 @@ export async function POST(request: Request) {
               pickerId: true,
               packlist: {
                 select: {
-                  packlistNumber: true,
+                  referenceNumber: true,
                 },
               },
             },
@@ -245,56 +229,107 @@ export async function POST(request: Request) {
 
           if (busyAdditionalPicker) {
             throw new Error(
-              `ADDITIONAL_PICKER_BUSY:${busyAdditionalPicker.packlist.packlistNumber}`,
+              `ADDITIONAL_PICKER_BUSY:${busyAdditionalPicker.packlist.referenceNumber}`,
             );
           }
         }
 
         /*
-         * =========================================================
-         * 5. CREATE PACKLIST
-         * =========================================================
+         * =====================================================
+         * 5. CALCULATE PER-PERSON WEIGHT
+         * =====================================================
+         *
+         * Current version:
+         *
+         * INWARD:
+         *
+         * grossWeight / numberOfPickers / 2
+         *
+         * Example:
+         *
+         * 150 kg / 3 / 2 = 25 kg
+         *
+         * For now, only INWARD uses this calculation.
+         *
+         * Other delivery types store NULL because their
+         * calculation rule has not been defined yet.
          */
+
+        const numberOfPickers = 1 + uniqueAdditionalPickerIds.length;
+
+        let perPersonWeight: Prisma.Decimal | null = null;
+        let calculationVersion: number | null = null;
+
+        if (deliveryType === 'INWARD') {
+          perPersonWeight = new Prisma.Decimal(grossWeight)
+            .dividedBy(numberOfPickers)
+            .dividedBy(2);
+
+          /*
+           * Store the version alongside the calculated value.
+           */
+          calculationVersion = CURRENT_CALCULATION_VERSION;
+        }
+
+        /*
+         * =====================================================
+         * 6. CREATE DELIVERY
+         * =====================================================
+         */
+
         const createdPacklist = await tx.packlistEntry.create({
           data: {
-            packlistNumber,
+            /*
+             * New generic reference.
+             */
+            referenceNumber,
+
             invoiceQuantity,
             grossWeight,
 
             /*
              * Legacy compatibility.
              *
-             * Keep this populated for the existing application.
+             * New records do not use packlistNumber.
+             */
+            packlistNumber: null,
+
+            /*
+             * Legacy primary picker reference.
              */
             pickerId: picker.id,
 
             /*
-             * New source of truth for who created the delivery.
+             * Company comes from authenticated user.
+             */
+            companyId: picker.companyId!,
+
+            /*
+             * Creator.
              */
             createdById: picker.id,
 
             /*
-             * Delivery lifecycle.
+             * Delivery information.
              */
+            deliveryType,
             status: 'ACTIVE',
             startedAt: new Date(),
+
+            /*
+             * Versioned calculation.
+             */
+            perPersonWeight,
+            calculationVersion,
           },
         });
 
         /*
-         * =========================================================
-         * 6. CREATE PICKER ASSIGNMENTS
-         * =========================================================
-         *
-         * One createMany call handles:
-         *
-         * primary picker
-         * +
-         * all additional pickers
-         *
-         * The database's unique constraint on
-         * (packlistId, pickerId) provides another layer of safety.
+         * =====================================================
+         * 7. CREATE PICKER ASSIGNMENTS
+         * =====================================================
          */
+
         const allPickerIds = [picker.id, ...uniqueAdditionalPickerIds];
 
         await tx.packlistPicker.createMany({
@@ -305,10 +340,11 @@ export async function POST(request: Request) {
         });
 
         /*
-         * =========================================================
-         * 7. AUDIT LOG
-         * =========================================================
+         * =====================================================
+         * 8. AUDIT LOG
+         * =====================================================
          */
+
         await tx.auditLog.create({
           data: {
             userId: picker.id,
@@ -316,11 +352,15 @@ export async function POST(request: Request) {
             entityType: 'PACKLIST',
             entityId: createdPacklist.id,
             changes: {
-              packlistNumber,
+              referenceNumber,
               invoiceQuantity,
               grossWeight,
+              deliveryType,
+              companyId: picker.companyId,
               primaryPickerId: picker.id,
               additionalPickerIds: uniqueAdditionalPickerIds,
+              perPersonWeight: perPersonWeight?.toString() ?? null,
+              calculationVersion,
             },
           },
         });
@@ -328,31 +368,42 @@ export async function POST(request: Request) {
         return createdPacklist;
       },
       {
-        /*
-         * We are deliberately using a transaction because the
-         * row locks must remain held until all changes are complete.
-         */
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       },
     );
 
     /*
-     * ===========================================================
-     * 8. RESPONSE
-     * ===========================================================
+     * =========================================================
+     * RESPONSE
+     * =========================================================
      */
+
     return NextResponse.json(
       {
         success: true,
         packlist: {
           id: packlist.id,
-          packlistNumber: packlist.packlistNumber,
+
+          referenceNumber: packlist.referenceNumber,
+
           invoiceQuantity: packlist.invoiceQuantity,
+
           grossWeight: packlist.grossWeight.toString(),
+
+          deliveryType: packlist.deliveryType,
+
+          perPersonWeight: packlist.perPersonWeight?.toString() ?? null,
+
+          calculationVersion: packlist.calculationVersion,
+
           status: packlist.status,
+
           startedAt: packlist.startedAt,
+
           completedAt: packlist.completedAt,
+
           createdAt: packlist.createdAt,
+
           pickers: [
             {
               id: picker.id,
@@ -374,48 +425,57 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     /*
-     * ===========================================================
-     * AUTHENTICATION / AUTHORIZATION
-     * ===========================================================
+     * =========================================================
+     * AUTHENTICATION
+     * =========================================================
      */
+
     if (error instanceof UnauthorizedError) {
       return NextResponse.json(
-        { error: 'Authentication required.' },
+        {
+          error: 'Authentication required.',
+        },
         { status: 401 },
       );
     }
 
     if (error instanceof ForbiddenError) {
       return NextResponse.json(
-        { error: 'Only pickers can enter packlists.' },
+        {
+          error: 'Only pickers can enter deliveries.',
+        },
         { status: 403 },
       );
     }
 
     /*
-     * ===========================================================
+     * =========================================================
      * PRIMARY PICKER BUSY
-     * ===========================================================
+     * =========================================================
      */
+
     if (
       error instanceof Error &&
       error.message.startsWith('PRIMARY_PICKER_BUSY:')
     ) {
-      const packlistNumber = error.message.split(':')[1];
+      const referenceNumber = error.message.substring(
+        'PRIMARY_PICKER_BUSY:'.length,
+      );
 
       return NextResponse.json(
         {
-          error: `You already have an active delivery (${packlistNumber}). Complete it before starting another delivery.`,
+          error: `You already have an active delivery (${referenceNumber}). Complete it before starting another delivery.`,
         },
         { status: 409 },
       );
     }
 
     /*
-     * ===========================================================
+     * =========================================================
      * ADDITIONAL PICKER NOT FOUND
-     * ===========================================================
+     * =========================================================
      */
+
     if (
       error instanceof Error &&
       error.message === 'ADDITIONAL_PICKER_NOT_FOUND'
@@ -429,10 +489,11 @@ export async function POST(request: Request) {
     }
 
     /*
-     * ===========================================================
+     * =========================================================
      * ADDITIONAL PICKER INVALID
-     * ===========================================================
+     * =========================================================
      */
+
     if (
       error instanceof Error &&
       error.message === 'ADDITIONAL_PICKER_INVALID'
@@ -440,49 +501,53 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'One or more selected pickers are inactive or are not valid pickers.',
+            'One or more selected pickers are inactive, are not valid pickers, or belong to another company.',
         },
         { status: 400 },
       );
     }
 
     /*
-     * ===========================================================
+     * =========================================================
      * ADDITIONAL PICKER BUSY
-     * ===========================================================
+     * =========================================================
      */
+
     if (
       error instanceof Error &&
       error.message.startsWith('ADDITIONAL_PICKER_BUSY:')
     ) {
-      const packlistNumber = error.message.split(':')[1];
+      const referenceNumber = error.message.substring(
+        'ADDITIONAL_PICKER_BUSY:'.length,
+      );
 
       return NextResponse.json(
         {
-          error: `The selected additional picker is already assigned to active delivery ${packlistNumber}.`,
+          error: `The selected additional picker is already assigned to active delivery ${referenceNumber}.`,
         },
         { status: 409 },
       );
     }
 
     /*
-     * ===========================================================
-     * DUPLICATE PACKLIST
-     * ===========================================================
+     * =========================================================
+     * DATABASE ERROR
+     * =========================================================
      */
+
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
       return NextResponse.json(
         {
-          error: 'This packlist number has already been entered.',
+          error: 'This delivery reference already exists.',
         },
         { status: 409 },
       );
     }
 
-    console.error('Create packlist error:', error);
+    console.error('Create delivery error:', error);
 
     return NextResponse.json(
       {
@@ -570,6 +635,9 @@ export async function GET(request: Request) {
         id: true,
         packlistNumber: true,
         invoiceQuantity: true,
+        referenceNumber: true,
+        deliveryType: true,
+        perPersonWeight: true,
         grossWeight: true,
         status: true,
         startedAt: true,
@@ -598,7 +666,10 @@ export async function GET(request: Request) {
         id: packlist.id,
         packlistNumber: packlist.packlistNumber,
         invoiceQuantity: packlist.invoiceQuantity,
+        referenceNumber: packlist.referenceNumber,
+        deliveryType: packlist.deliveryType,
         grossWeight: packlist.grossWeight.toString(),
+        perPersonWeight: packlist.perPersonWeight,
         status: packlist.status,
         startedAt: packlist.startedAt,
         completedAt: packlist.completedAt,

@@ -8,6 +8,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  SUPERVISOR
   PICKER
 }
 
@@ -17,6 +18,38 @@ enum DeliveryStatus {
   LEGACY
 }
 
+enum DeliveryType {
+  INWARD
+  OUTWARD
+  MATERIAL_RETURN
+  OTHER
+}
+
+enum VerificationStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum VerificationResult {
+  MATCHED
+  DISCREPANCY
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                User[]
+  packlistEntries      PacklistEntry[]
+  rstEntries           RstEntry[]
+  invoiceVerifications InvoiceVerification[]
+
+  @@index([isActive])
+}
+
 model User {
   id           String   @id @default(uuid())
   phoneNumber  String   @unique
@@ -24,21 +57,32 @@ model User {
   passwordHash String
   role         UserRole @default(PICKER)
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
-  sessions        Session[]
-  packlistEntries PacklistEntry[] @relation("LegacyPacklistPicker")
+  /**
+   * Temporarily optional because existing users
+   * need to be assigned to companies.
+   * ADMIN      -> companyId can be null
+   * SUPERVISOR -> companyId required
+   * PICKER     -> companyId required
+   */
+  companyId String?
 
-  createdPacklists PacklistEntry[] @relation("PacklistCreator")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  packlistAssignments PacklistPicker[]
+  company Company? @relation(fields: [companyId], references: [id])
 
-  auditLogs AuditLog[]
+  sessions             Session[]
+  packlistEntries      PacklistEntry[]       @relation("LegacyPacklistPicker")
+  createdPacklists     PacklistEntry[]       @relation("PacklistCreator")
+  packlistAssignments  PacklistPicker[]
+  auditLogs            AuditLog[]
+  rstEntries           RstEntry[]
+  attendance           Attendance[]
+  invoiceVerifications InvoiceVerification[]
 
-  rstEntries RstEntry[]
-
-  attendance Attendance[]
+  @@index([companyId])
+  @@index([role])
 }
 
 model Session {
@@ -54,23 +98,72 @@ model Session {
 }
 
 model PacklistEntry {
-  id              String  @id @default(uuid())
-  packlistNumber  String  @unique
+  id String @id @default(uuid())
+
+  /**
+   * LEGACY FIELD
+   * Existing records may contain a packlist number.
+   * New records should use referenceNumber instead.
+   * This field is intentionally no longer unique.
+   */
+  packlistNumber String?
+
+  /**
+   * Generic reference for the warehouse movement.
+   * Can contain:
+   * - Packlist number
+   * - Invoice number
+   * - Inbound number
+   * - LR number
+   * - Any other reference
+   */
+  referenceNumber String
+
   invoiceQuantity Int
   grossWeight     Decimal @db.Decimal(12, 2)
-  pickerId        String
+
+  /**
+   * Legacy primary picker reference.
+   * Keep this for backward compatibility.
+   * The PacklistPicker relation remains the source
+   * for multiple-picker assignments.
+   */
+  pickerId String
+
+  /**
+   * Company owning this warehouse movement.
+   * Temporarily nullable while existing records
+   * are assigned to companies.
+   */
+  companyId String
 
   createdById String?
 
-  // Delivery life cycle methods
-  status      DeliveryStatus @default(LEGACY)
+  /**
+   * Delivery lifecycle
+   */
+  status       DeliveryStatus @default(LEGACY)
+  deliveryType DeliveryType
+
   startedAt   DateTime?
   completedAt DateTime?
+
+  /**
+   * Inward calculation
+   * Current rule:
+   * grossWeight / numberOfPickers / 2
+   * The calculated result is stored so historical
+   * records remain unchanged if the rule changes.
+   */
+  perPersonWeight    Decimal? @db.Decimal(12, 2)
+  calculationVersion Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   picker User @relation("LegacyPacklistPicker", fields: [pickerId], references: [id])
+
+  company Company? @relation(fields: [companyId], references: [id])
 
   createdBy User? @relation("PacklistCreator", fields: [createdById], references: [id])
 
@@ -80,6 +173,11 @@ model PacklistEntry {
   @@index([createdAt])
   @@index([createdById])
   @@index([status])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([referenceNumber])
+  @@index([companyId, referenceNumber])
+  @@index([packlistNumber])
 }
 
 model PacklistPicker {
@@ -94,6 +192,7 @@ model PacklistPicker {
 
   @@unique([packlistId, pickerId])
   @@index([pickerId])
+  @@index([pickerId, packlistId])
 }
 
 model AuditLog {
@@ -113,18 +212,23 @@ model AuditLog {
 }
 
 model RstEntry {
-  id          String   @id @default(uuid())
+  id          String @id @default(uuid())
   skuCode     String
   quantity    Int
   enteredById String
-  enteredAt   DateTime @default(now())
-  createdAt   DateTime @default(now())
+  companyId   String
+
+  enteredAt DateTime @default(now())
+  createdAt DateTime @default(now())
 
   enteredBy User @relation(fields: [enteredById], references: [id])
+
+  company Company? @relation(fields: [companyId], references: [id])
 
   @@index([enteredAt])
   @@index([skuCode])
   @@index([enteredById])
+  @@index([companyId])
 }
 
 model Attendance {
@@ -142,4 +246,46 @@ model Attendance {
   @@unique([userId, attendanceDate])
   @@index([userId])
   @@index([attendanceDate])
+}
+
+model InvoiceVerification {
+  id String @id @default(uuid())
+
+  invoiceNumber String
+
+  invoicedQuantity   Int
+  dispatchedQuantity Int?
+
+  invoicedWeight   Decimal  @db.Decimal(12, 2)
+  dispatchedWeight Decimal? @db.Decimal(12, 2)
+
+  remarks String?
+
+  result VerificationResult?
+
+  status VerificationStatus @default(ACTIVE)
+
+  startedAt   DateTime
+  completedAt DateTime?
+
+  supervisorId String
+  companyId    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supervisor User @relation(fields: [supervisorId], references: [id])
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, invoiceNumber])
+  @@index([supervisorId])
+  @@index([companyId])
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([result])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@index([companyId, status])
+  @@index([companyId, invoiceNumber])
 }

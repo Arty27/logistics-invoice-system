@@ -11,8 +11,11 @@ export default async function AdminLayout({
 }>) {
   const user = await requireUser();
 
-  if (user.role !== 'ADMIN') {
+  if (user.role === 'PICKER') {
     redirect('/picker');
+  }
+  if (user.role === 'SUPERVISOR') {
+    redirect('/supervisor');
   }
 
   return (
