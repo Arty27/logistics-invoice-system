@@ -32,7 +32,11 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
   const isInvoicePage = pathname.startsWith('/admin/invoice-verifications');
 
   const isDashboardPage =
-    !isPacklistsPage && !isPickersPage && !isRstPage && !isInvoicePage;
+    !isPacklistsPage &&
+    !isPickersPage &&
+    !isRstPage &&
+    !isInvoicePage &&
+    !isCompanyPage;
 
   return (
     <header className="bg-[#f14902] text-white shadow-sm">

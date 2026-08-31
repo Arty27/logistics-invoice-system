@@ -1,5 +1,6 @@
 'use client';
 
+import Loading from '@/components/Loading';
 import { FormEvent, useEffect, useState } from 'react';
 
 type Company = {
@@ -345,9 +346,7 @@ export default function AdminCompaniesPage() {
         </div>
 
         {isLoading ? (
-          <div className="px-6 py-10">
-            <p className="text-sm text-[#6b6968]">Loading companies...</p>
-          </div>
+          <Loading />
         ) : companies.length === 0 ? (
           <div className="px-6 py-10 text-center">
             <p className="text-sm text-[#6b6968]">

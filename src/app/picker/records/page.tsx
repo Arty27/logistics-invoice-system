@@ -4,6 +4,7 @@ import { Packlist } from '@/types/Packlist';
 import { useEffect, useState } from 'react';
 import recordsTable from '@/components/PacklistTable';
 import PacklistTable from '@/components/PacklistTable';
+import Loading from '@/components/Loading';
 
 type PacklistsResponse = {
   data?: Packlist[];
@@ -42,11 +43,7 @@ export default function PickerRecordsPage() {
   }, []);
 
   if (isLoading) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <p className="text-sm text-[#6b6968]">Loading records...</p>
-      </main>
-    );
+    return <Loading />;
   }
 
   return (

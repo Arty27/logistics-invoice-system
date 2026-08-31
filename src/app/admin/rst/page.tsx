@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
+import Loading from '@/components/Loading';
 
 type RstEntry = {
   id: string;
@@ -575,9 +576,7 @@ export default function RstPage() {
         </div>
 
         {isLoading ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-[#6b6968]">Loading RST entries...</p>
-          </div>
+          <Loading />
         ) : entries.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm font-medium text-[#393536]">

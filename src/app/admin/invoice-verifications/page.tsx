@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { formatDuration } from '@/lib/functions';
+import Loading from '@/components/Loading';
 
 type Supervisor = {
   id: string;
@@ -428,11 +429,7 @@ export default function AdminInvoiceVerificationsPage() {
         </div>
 
         {isLoadingRecords ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-[#6b6968]">
-              Loading verification records...
-            </p>
-          </div>
+          <Loading />
         ) : verifications.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm text-[#6b6968]">
