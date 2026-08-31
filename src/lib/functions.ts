@@ -39,3 +39,31 @@ export function formatDuration(
 
   return `${remainingSeconds}s`;
 }
+
+export const getDate = (value: Date | string | null | undefined): string => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
+export const getTime = (value: Date | string | null | undefined): string => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};

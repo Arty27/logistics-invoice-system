@@ -279,30 +279,85 @@ export async function POST(request: Request) {
  * - Only PICKER users are returned
  * ---------------------------------------------------------
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
 
-    const userFilter: Prisma.UserWhereInput =
-      user.role === UserRole.ADMIN
-        ? {
-            companyId: { not: null },
-            OR: [{ role: UserRole.PICKER }, { role: UserRole.SUPERVISOR }],
-          }
-        : {
-            companyId: user.companyId,
-            role: UserRole.PICKER,
-          };
+    /*
+     * ---------------------------------------------------------
+     * Read query parameters
+     * ---------------------------------------------------------
+     *
+     * companyId is optional.
+     *
+     * /api/users
+     *     -> all users belonging to companies
+     *
+     * /api/users?companyId=xxx
+     *     -> users belonging to that company
+     *
+     * The UI will handle filtering between
+     * PICKER and SUPERVISOR.
+     */
 
-    const pickers = await prisma.user.findMany({
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId');
+
+    /*
+     * ---------------------------------------------------------
+     * Build user filter
+     * ---------------------------------------------------------
+     */
+
+    let userFilter: Prisma.UserWhereInput;
+
+    if (user.role === UserRole.ADMIN) {
+      userFilter = {
+        companyId: companyId
+          ? companyId
+          : {
+              not: null,
+            },
+
+        OR: [
+          {
+            role: UserRole.PICKER,
+          },
+          {
+            role: UserRole.SUPERVISOR,
+          },
+        ],
+
+        isActive: true,
+      };
+    } else {
+      /*
+       * Non-admin users can only see active pickers
+       * belonging to their own company.
+       */
+      userFilter = {
+        companyId: user.companyId,
+        role: UserRole.PICKER,
+        isActive: true,
+      };
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * Get users
+     * ---------------------------------------------------------
+     */
+
+    const users = await prisma.user.findMany({
       where: {
         /*
          * Current user should never appear in the
-         * additional picker selection.
+         * additional user selection.
          */
         id: {
           not: user.id,
         },
+
         ...userFilter,
       },
 
@@ -310,7 +365,12 @@ export async function GET() {
         id: true,
         name: true,
         phoneNumber: true,
-        company: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         role: true,
         isActive: true,
         createdAt: true,
@@ -322,8 +382,8 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      data: pickers,
-      count: pickers.length,
+      data: users,
+      count: users.length,
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
@@ -344,7 +404,7 @@ export async function GET() {
       );
     }
 
-    console.error('Get pickers error:', error);
+    console.error('Get users error:', error);
 
     return NextResponse.json(
       {

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
 import Loading from '@/components/Loading';
+import { getDate, getTime } from '@/lib/functions';
 
 type RstEntry = {
   id: string;
@@ -263,8 +264,13 @@ export default function RstPage() {
           width: 25,
         },
         {
-          header: 'Entered At',
-          key: 'enteredAt',
+          header: 'Entered Date',
+          key: 'enteredDate',
+          width: 25,
+        },
+        {
+          header: 'Entered Time',
+          key: 'enteredTime',
           width: 25,
         },
       ];
@@ -290,14 +296,15 @@ export default function RstPage() {
           skuCode: entry.skuCode,
           quantity: entry.quantity,
           enteredBy: entry.enteredBy.name,
-          enteredAt: new Date(entry.enteredAt),
+          enteredDate: getDate(entry.enteredAt),
+          enteredTime: getTime(entry.enteredAt),
         });
       });
 
       /*
        * Date formatting
        */
-      worksheet.getColumn('enteredAt').numFmt = 'dd/mm/yyyy hh:mm:ss';
+      worksheet.getColumn('enteredDate').numFmt = 'dd/mm/yyyy';
 
       /*
        * Total quantity
@@ -311,7 +318,8 @@ export default function RstPage() {
         skuCode: 'TOTAL',
         quantity: totalQuantity,
         enteredBy: '',
-        enteredAt: '',
+        enteredDate: '',
+        enteredTime: '',
       });
 
       totalRow.font = {

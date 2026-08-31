@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
-import { formatDuration } from '@/lib/functions';
+import { formatDuration, getDate, getTime } from '@/lib/functions';
 import Loading from '@/components/Loading';
 
 type Company = {
@@ -249,8 +249,10 @@ export default function AdminInvoiceVerificationsPage() {
       { header: 'Dispatched Weight', key: 'dispatchedWeight', width: 20 },
       { header: 'Result', key: 'result', width: 15 },
       { header: 'Remarks', key: 'remarks', width: 40 },
-      { header: 'Started At', key: 'startedAt', width: 22 },
-      { header: 'Completed At', key: 'completedAt', width: 22 },
+      { header: 'Start Date', key: 'startDate', width: 22 },
+      { header: 'Start Time', key: 'startTime', width: 22 },
+      { header: 'End Date', key: 'endDate', width: 22 },
+      { header: 'End Time', key: 'endTime', width: 22 },
       { header: 'Verification Time', key: 'verificationTime', width: 20 },
       { header: 'Created At', key: 'createdAt', width: 22 },
     ];
@@ -291,8 +293,10 @@ export default function AdminInvoiceVerificationsPage() {
         dispatchedWeight: verification.dispatchedWeight ?? '',
         result: verification.result ?? '',
         remarks: verification.remarks ?? '',
-        startedAt: startedAt.toLocaleString(),
-        completedAt: completedAt?.toLocaleString() ?? '',
+        startDate: getDate(startedAt.toLocaleString()),
+        startTime: getTime(startedAt.toLocaleString()),
+        endDate: getDate(completedAt?.toLocaleString() ?? ''),
+        endTime: getTime(completedAt?.toLocaleString() ?? ''),
         verificationTime,
         createdAt: new Date(verification.createdAt).toLocaleString(),
       });
