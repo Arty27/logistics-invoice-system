@@ -223,7 +223,7 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
                   : 'border-transparent hover:bg-[#d94000]'
               }`}
             >
-              Pickers
+              Members
             </button>
           </nav>
         </div>

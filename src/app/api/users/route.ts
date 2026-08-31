@@ -1,5 +1,5 @@
 import argon2 from 'argon2';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -8,6 +8,7 @@ import { ForbiddenError, UnauthorizedError } from '@/server/common/error';
 import { requireAdmin, requireUser } from '@/server/auth/authorization';
 
 import { prisma } from '@/server/db/prisma';
+import { routeModule } from 'next/dist/build/templates/pages';
 
 /*
  * ---------------------------------------------------------
@@ -282,15 +283,19 @@ export async function GET() {
   try {
     const user = await requireUser();
 
-    const companyId =
-      user.role === 'ADMIN'
-        ? { companyId: { not: null } }
-        : { companyId: user.companyId };
+    const userFilter: Prisma.UserWhereInput =
+      user.role === UserRole.ADMIN
+        ? {
+            companyId: { not: null },
+            OR: [{ role: UserRole.PICKER }, { role: UserRole.SUPERVISOR }],
+          }
+        : {
+            companyId: user.companyId,
+            role: UserRole.PICKER,
+          };
 
     const pickers = await prisma.user.findMany({
       where: {
-        role: 'PICKER',
-
         /*
          * Current user should never appear in the
          * additional picker selection.
@@ -298,8 +303,7 @@ export async function GET() {
         id: {
           not: user.id,
         },
-
-        ...companyId,
+        ...userFilter,
       },
 
       select: {

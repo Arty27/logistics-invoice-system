@@ -11,9 +11,9 @@ export async function GET(request: Request) {
      * Authentication
      * ---------------------------------------------------------
      */
-
+    console.time('admin-auth');
     await requireAdmin();
-
+    console.timeEnd('admin-auth');
     /*
      * ---------------------------------------------------------
      * Read query parameters
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     const supervisorId = searchParams.get('supervisorId');
+    const companyId = searchParams.get('companyId');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
      * Build query
      * ---------------------------------------------------------
      */
-
+    console.time('verification');
     const verifications = await prisma.invoiceVerification.findMany({
       where: {
         status: 'COMPLETED',
@@ -94,6 +95,11 @@ export async function GET(request: Request) {
         ...(supervisorId && supervisorId !== 'all'
           ? {
               supervisorId,
+            }
+          : {}),
+        ...(companyId && companyId !== 'all'
+          ? {
+              companyId,
             }
           : {}),
       },
@@ -139,39 +145,42 @@ export async function GET(request: Request) {
         completedAt: 'desc',
       },
     });
-
+    console.timeEnd('verification');
     /*
      * ---------------------------------------------------------
      * Return records
      * ---------------------------------------------------------
      */
+    console.time('invoice-mapping');
+    const data = verifications.map((verification) => ({
+      id: verification.id,
+
+      invoiceNumber: verification.invoiceNumber,
+
+      invoicedQuantity: verification.invoicedQuantity,
+      dispatchedQuantity: verification.dispatchedQuantity,
+
+      invoicedWeight: verification.invoicedWeight.toString(),
+      dispatchedWeight: verification.dispatchedWeight?.toString() ?? null,
+
+      remarks: verification.remarks,
+      result: verification.result,
+
+      status: verification.status,
+
+      startedAt: verification.startedAt,
+      completedAt: verification.completedAt,
+
+      createdAt: verification.createdAt,
+
+      supervisor: verification.supervisor,
+
+      company: verification.company,
+    }));
+    console.timeEnd('invoice-mapping');
 
     return NextResponse.json({
-      data: verifications.map((verification) => ({
-        id: verification.id,
-
-        invoiceNumber: verification.invoiceNumber,
-
-        invoicedQuantity: verification.invoicedQuantity,
-        dispatchedQuantity: verification.dispatchedQuantity,
-
-        invoicedWeight: verification.invoicedWeight.toString(),
-        dispatchedWeight: verification.dispatchedWeight?.toString() ?? null,
-
-        remarks: verification.remarks,
-        result: verification.result,
-
-        status: verification.status,
-
-        startedAt: verification.startedAt,
-        completedAt: verification.completedAt,
-
-        createdAt: verification.createdAt,
-
-        supervisor: verification.supervisor,
-
-        company: verification.company,
-      })),
+      data: data,
 
       count: verifications.length,
     });

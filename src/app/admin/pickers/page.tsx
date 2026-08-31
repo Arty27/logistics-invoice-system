@@ -295,7 +295,7 @@ export default function AdminPickersPage() {
           }}
           className="h-10 shrink-0 cursor-pointer rounded-md bg-[#f14902] px-5 text-sm font-medium text-white hover:bg-[#d94000]"
         >
-          {showAddForm ? 'Cancel' : 'Add Picker'}
+          {showAddForm ? 'Cancel' : 'Add Members'}
         </button>
       </div>
 

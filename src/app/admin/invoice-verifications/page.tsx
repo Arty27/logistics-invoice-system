@@ -5,6 +5,11 @@ import ExcelJS from 'exceljs';
 import { formatDuration } from '@/lib/functions';
 import Loading from '@/components/Loading';
 
+type Company = {
+  id: string;
+  name: string;
+};
+
 type Supervisor = {
   id: string;
   name: string;
@@ -68,16 +73,49 @@ export default function AdminInvoiceVerificationsPage() {
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [verifications, setVerifications] = useState<Verification[]>([]);
 
+  const [companyId, setCompanyId] = useState('all');
   const [supervisorId, setSupervisorId] = useState('all');
 
   const [fromDate, setFromDate] = useState(getToday());
   const [toDate, setToDate] = useState(getToday());
 
   const [isLoadingSupervisors, setIsLoadingSupervisors] = useState(true);
-
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
 
   const [error, setError] = useState('');
+
+  /*
+   * ---------------------------------------------------------
+   * Derived companies
+   * ---------------------------------------------------------
+   */
+
+  const companies: Company[] = Array.from(
+    new Map(
+      supervisors
+        .filter((supervisor) => supervisor.company)
+        .map((supervisor) => [
+          supervisor.company!.id,
+          {
+            id: supervisor.company!.id,
+            name: supervisor.company!.name,
+          },
+        ]),
+    ).values(),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  /*
+   * ---------------------------------------------------------
+   * Supervisors filtered by selected company
+   * ---------------------------------------------------------
+   */
+
+  const filteredSupervisors =
+    companyId === 'all'
+      ? supervisors
+      : supervisors.filter(
+          (supervisor) => supervisor.company?.id === companyId,
+        );
 
   /*
    * ---------------------------------------------------------
@@ -101,14 +139,6 @@ export default function AdminInvoiceVerificationsPage() {
         return;
       }
 
-      /*
-       * The users endpoint currently returns pickers.
-       *
-       * This assumes it has been updated to return supervisors
-       * as well, or that the API response contains users with
-       * their roles.
-       */
-
       setSupervisors(data.data ?? []);
     } catch {
       setError('Unable to connect to the server.');
@@ -130,6 +160,7 @@ export default function AdminInvoiceVerificationsPage() {
     try {
       const params = new URLSearchParams();
 
+      params.set('companyId', companyId);
       params.set('supervisorId', supervisorId);
       params.set('from', fromDate);
       params.set('to', toDate);
@@ -164,12 +195,38 @@ export default function AdminInvoiceVerificationsPage() {
 
   useEffect(() => {
     loadSupervisors();
-    // loadVerifications();
   }, []);
 
   /*
    * ---------------------------------------------------------
+   * Company change
+   * ---------------------------------------------------------
+   */
+
+  function handleCompanyChange(value: string) {
+    setCompanyId(value);
+
+    /*
+     * Whenever company changes, reset supervisor
+     * so an old supervisor from another company
+     * cannot remain selected.
+     */
+    setSupervisorId('all');
+  }
+
+  /*
+   * ---------------------------------------------------------
    * Search
+   * ---------------------------------------------------------
+   */
+
+  function handleSearch() {
+    loadVerifications();
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * Download Excel
    * ---------------------------------------------------------
    */
 
@@ -274,15 +331,9 @@ export default function AdminInvoiceVerificationsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function handleSearch() {
-    loadVerifications();
-  }
-
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
-      {/* =====================================================
-          PAGE HEADER
-          ===================================================== */}
+      {/* PAGE HEADER */}
 
       <div className="mb-8">
         <h1 className="text-xl font-semibold text-[#393536]">
@@ -294,9 +345,7 @@ export default function AdminInvoiceVerificationsPage() {
         </p>
       </div>
 
-      {/* =====================================================
-          ERROR
-          ===================================================== */}
+      {/* ERROR */}
 
       {error && (
         <div
@@ -307,16 +356,41 @@ export default function AdminInvoiceVerificationsPage() {
         </div>
       )}
 
-      {/* =====================================================
-          FILTERS
-          ===================================================== */}
+      {/* FILTERS */}
 
       <section className="mb-6 rounded-lg border border-[#dedddb] bg-white shadow-sm">
         <div className="border-b border-[#e5e4e2] px-6 py-5">
           <h2 className="text-sm font-semibold text-[#393536]">Filters</h2>
         </div>
 
-        <div className="grid gap-5 px-6 py-6 md:grid-cols-4">
+        <div className="grid gap-5 px-6 py-6 md:grid-cols-5">
+          {/* Company */}
+
+          <div>
+            <label
+              htmlFor="company"
+              className="mb-2 block text-sm font-medium text-[#393536]"
+            >
+              Company
+            </label>
+
+            <select
+              id="company"
+              value={companyId}
+              onChange={(event) => handleCompanyChange(event.target.value)}
+              disabled={isLoadingSupervisors}
+              className="h-11 w-full rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15 disabled:bg-[#f7f7f6]"
+            >
+              <option value="all">All Companies</option>
+
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Supervisor */}
 
           <div>
@@ -336,10 +410,12 @@ export default function AdminInvoiceVerificationsPage() {
             >
               <option value="all">All Supervisors</option>
 
-              {supervisors.map((supervisor) => (
+              {filteredSupervisors.map((supervisor) => (
                 <option key={supervisor.id} value={supervisor.id}>
                   {supervisor.name}
-                  {supervisor.company ? ` — ${supervisor.company.name}` : ''}
+                  {companyId === 'all' && supervisor.company
+                    ? ` — ${supervisor.company.name}`
+                    : ''}
                 </option>
               ))}
             </select>
@@ -398,13 +474,9 @@ export default function AdminInvoiceVerificationsPage() {
         </div>
       </section>
 
-      {/* =====================================================
-          RESULTS
-          ===================================================== */}
+      {/* RESULTS */}
 
       <section className="overflow-hidden rounded-lg border border-[#dedddb] bg-white shadow-sm">
-        {/* Results header */}
-
         <div className="flex items-center justify-between gap-4 border-b border-[#e5e4e2] px-6 py-5">
           <div className="flex w-full justify-between">
             <div>
@@ -417,6 +489,7 @@ export default function AdminInvoiceVerificationsPage() {
                 Completed invoice verifications matching the selected filters.
               </p>
             </div>
+
             <button
               type="button"
               onClick={downloadExcel}
@@ -491,13 +564,9 @@ export default function AdminInvoiceVerificationsPage() {
                     key={verification.id}
                     className="border-b border-[#eeecea] last:border-0"
                   >
-                    {/* Invoice */}
-
                     <td className="px-5 py-4 font-medium text-[#393536]">
                       {verification.invoiceNumber}
                     </td>
-
-                    {/* Supervisor */}
 
                     <td className="px-5 py-4 text-[#555251]">
                       <div>
@@ -511,37 +580,25 @@ export default function AdminInvoiceVerificationsPage() {
                       </div>
                     </td>
 
-                    {/* Company */}
-
                     <td className="px-5 py-4 text-[#555251]">
                       {verification.company.name}
                     </td>
-
-                    {/* Invoiced Qty */}
 
                     <td className="px-5 py-4 text-[#555251]">
                       {verification.invoicedQuantity}
                     </td>
 
-                    {/* Dispatched Qty */}
-
                     <td className="px-5 py-4 text-[#555251]">
                       {verification.dispatchedQuantity ?? '-'}
                     </td>
-
-                    {/* Invoiced Weight */}
 
                     <td className="px-5 py-4 text-[#555251]">
                       {verification.invoicedWeight}
                     </td>
 
-                    {/* Dispatched Weight */}
-
                     <td className="px-5 py-4 text-[#555251]">
                       {verification.dispatchedWeight ?? '-'}
                     </td>
-
-                    {/* Result */}
 
                     <td className="px-5 py-4">
                       {verification.result ? (
@@ -559,8 +616,6 @@ export default function AdminInvoiceVerificationsPage() {
                       )}
                     </td>
 
-                    {/* Duration */}
-
                     <td className="px-5 py-4 whitespace-nowrap text-[#555251]">
                       {formatDuration(
                         verification.startedAt,
@@ -568,13 +623,9 @@ export default function AdminInvoiceVerificationsPage() {
                       )}
                     </td>
 
-                    {/* Completed At */}
-
                     <td className="px-5 py-4 whitespace-nowrap text-[#555251]">
                       {formatDateTime(verification.completedAt)}
                     </td>
-
-                    {/* Remarks */}
 
                     <td className="max-w-[280px] px-5 py-4 text-[#555251]">
                       <span
