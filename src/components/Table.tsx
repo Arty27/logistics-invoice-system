@@ -274,7 +274,7 @@ export default function Table<T>({
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={`px-5 py-4 align-middle text-[#393536] ${getAlignmentClass(
+                      className={`px-5 py-2 align-middle text-[#393536] ${getAlignmentClass(
                         column.align,
                       )} ${column.className ?? ''}`}
                     >
