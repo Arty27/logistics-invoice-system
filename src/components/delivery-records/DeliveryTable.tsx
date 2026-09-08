@@ -21,7 +21,7 @@ export default function DeliveryTable({
             <TableHeader>User</TableHeader>
             <TableHeader>Reference</TableHeader>
             <TableHeader align="right">Quantity</TableHeader>
-            <TableHeader align="right">Weight</TableHeader>
+            <TableHeader align="right">Weight (kg)</TableHeader>
             <TableHeader>Status</TableHeader>
             <TableHeader>Completed</TableHeader>
           </tr>

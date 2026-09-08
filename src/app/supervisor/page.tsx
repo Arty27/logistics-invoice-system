@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Loading from '@/components/Loading';
 import { launchConfetti } from '@/lib/confetti';
+import { formatDateTime } from '@/lib/functions';
 
 type User = {
   id: string;
@@ -358,20 +359,6 @@ export default function SupervisorPage() {
    * Format date/time
    * ---------------------------------------------------------
    */
-
-  function formatDateTime(value: string | null) {
-    if (!value) {
-      return '-';
-    }
-
-    return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
 
   /*
    * ---------------------------------------------------------

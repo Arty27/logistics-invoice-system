@@ -4,6 +4,7 @@ import Greeting from '@/components/Greeting';
 import Loading from '@/components/Loading';
 import PacklistTable from '@/components/PacklistTable';
 import { useUser } from '@/components/UserContext';
+import { formatDateTime } from '@/lib/functions';
 import { Packlist } from '@/types/Packlist';
 import { useEffect, useState } from 'react';
 
@@ -354,14 +355,6 @@ function StatusBadge({
       {labels[status]}
     </span>
   );
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return '—';
-  }
-
-  return new Date(value).toLocaleString('en-IN');
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {

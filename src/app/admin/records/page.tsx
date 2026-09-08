@@ -6,26 +6,7 @@ import DeliveryResults from '@/components/delivery-records/DeliveryResults';
 import { useDeliveryRecords } from '@/hooks/useDeliveryRecords';
 import { exportToExcel } from '@/lib/excel/exporter';
 import { deliveryRecordColumns } from '@/lib/excel/reports/delivery-records';
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { formatDateTime } from '@/lib/functions';
 
 export default function AdminInvoiceVerificationsPage() {
   const {
@@ -63,6 +44,7 @@ export default function AdminInvoiceVerificationsPage() {
   const handleDownloadExcel = async () => {
     try {
       setIsDownloading(true);
+
       await exportToExcel({
         fileName: `Records-${new Date().toISOString().split('T')[0]}.xlsx`,
         sheetName: 'Delivery Records',
@@ -78,22 +60,20 @@ export default function AdminInvoiceVerificationsPage() {
 
   return (
     <main className="min-h-[calc(100vh-64px)] bg-[#f7f7f6] px-4 py-6 sm:px-6 lg:py-8">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-6xl animate-[pageFadeIn_400ms_ease-out]">
         {/* Page Header */}
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[#393536]">
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#393536] sm:text-[26px]">
             Delivery Records
           </h1>
 
-          <p className="mt-1 text-sm text-[#6b6968]">
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#6b6968]">
             View packlists and invoice verifications by company, user and date
             range.
           </p>
-        </div>
+        </header>
 
         {/* Filters */}
-
         <DeliveryFilters
           companies={companies}
           filteredUsers={filteredUsers}
@@ -116,16 +96,50 @@ export default function AdminInvoiceVerificationsPage() {
         />
 
         {/* Results */}
-
         {hasSearched && (
-          <DeliveryResults
-            records={records}
-            isDownloading={isDownloading}
-            onDownloadExcel={handleDownloadExcel}
-            formatDateTime={formatDateTime}
-          />
+          <div className="mt-6 animate-[resultsFadeIn_300ms_ease-out]">
+            <DeliveryResults
+              records={records}
+              isDownloading={isDownloading}
+              onDownloadExcel={handleDownloadExcel}
+              formatDateTime={formatDateTime}
+            />
+          </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes pageFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes resultsFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }

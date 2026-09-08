@@ -1,15 +1,7 @@
 'use client';
 
-import { formatDuration } from '@/lib/functions';
+import { formatDateTime, formatDuration } from '@/lib/functions';
 import { Packlist, Picker } from '@/types/Packlist';
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return '—';
-  }
-
-  return new Date(value).toLocaleString('en-IN');
-}
 
 function getStatusLabel(status: Packlist['status']) {
   switch (status) {

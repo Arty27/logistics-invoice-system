@@ -50,20 +50,6 @@ export default function SupervisorRecordsPage() {
     loadVerifications();
   }, []);
 
-  function formatDateTime(value: string | null) {
-    if (!value) {
-      return '-';
-    }
-
-    return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-
   function getResultLabel(result: string | null) {
     if (!result) {
       return '-';

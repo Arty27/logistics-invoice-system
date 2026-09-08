@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
-import { formatDuration, getDate, getTime } from '@/lib/functions';
+import {
+  formatDateTime,
+  formatDuration,
+  getDate,
+  getTime,
+} from '@/lib/functions';
 import Loading from '@/components/Loading';
 
 type Company = {
@@ -53,20 +58,6 @@ type Verification = {
 
 function getToday() {
   return new Date().toISOString().split('T')[0];
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return '-';
-  }
-
-  return new Date(value).toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 export default function AdminInvoiceVerificationsPage() {

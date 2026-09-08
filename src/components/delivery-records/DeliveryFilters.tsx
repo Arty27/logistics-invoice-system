@@ -1,6 +1,8 @@
 'use client';
 
+import { Loader2, Search } from 'lucide-react';
 import type { Company, User, UserType } from '@/types/delivery-records';
+import ActionButton from '../ActionButton';
 
 type DeliveryFiltersProps = {
   companies: Company[];
@@ -59,15 +61,28 @@ export default function DeliveryFilters({
 }: DeliveryFiltersProps) {
   const usersDisabled = companyId === 'all' || !usersLoaded || isLoadingUsers;
 
-  return (
-    <section className="rounded-lg border border-[#dedddb] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-5">
-        <h2 className="text-base font-semibold text-[#393536]">Filters</h2>
+  const inputClasses =
+    'h-11 w-full cursor-pointer rounded-lg border border-[#d8d6d4] bg-white px-3 text-sm text-[#393536] shadow-[0_1px_2px_rgba(0,0,0,0.03)] outline-none transition-all duration-200 placeholder:text-[#a09e9c] hover:border-[#bcb9b7] focus:border-[#f14902] focus:ring-4 focus:ring-[#f14902]/10 disabled:cursor-not-allowed disabled:border-[#e3e1df] disabled:bg-[#f7f7f6] disabled:text-[#aaa8a6]';
 
-        <p className="mt-1 text-sm text-[#777473]">
+  return (
+    <section className="rounded-2xl border border-[#e5e3e1] bg-white p-5 shadow-[0_4px_20px_rgba(57,53,54,0.04)] transition-shadow duration-200 sm:p-6">
+      {/* Header */}
+
+      <div className="mb-6">
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-1 rounded-full bg-[#f14902]" />
+
+          <h2 className="text-base font-semibold tracking-tight text-[#393536]">
+            Filters
+          </h2>
+        </div>
+
+        <p className="mt-1.5 text-sm leading-5 text-[#777473]">
           Select a company first, then narrow the records by user.
         </p>
       </div>
+
+      {/* Filters */}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
         {/* Company */}
@@ -85,7 +100,7 @@ export default function DeliveryFilters({
             value={companyId}
             onChange={(event) => onCompanyChange(event.target.value)}
             disabled={isLoadingCompanies}
-            className="h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15 disabled:cursor-not-allowed disabled:bg-[#f7f7f6]"
+            className={inputClasses}
           >
             <option value="all">Select Company</option>
 
@@ -114,7 +129,7 @@ export default function DeliveryFilters({
               onUserTypeChange(event.target.value as UserType)
             }
             disabled={usersDisabled}
-            className="h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15 disabled:cursor-not-allowed disabled:bg-[#f7f7f6]"
+            className={inputClasses}
           >
             <option value="all">All Roles</option>
             <option value="SUPERVISOR">Supervisors</option>
@@ -137,7 +152,7 @@ export default function DeliveryFilters({
             value={userId}
             onChange={(event) => onUserChange(event.target.value)}
             disabled={usersDisabled}
-            className="h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+            className={inputClasses}
           >
             <option value="all">All Users</option>
 
@@ -150,11 +165,13 @@ export default function DeliveryFilters({
           </select>
 
           {isLoadingUsers && (
-            <p className="mt-1.5 text-xs text-[#777473]">Loading users...</p>
+            <p className="mt-1.5 animate-[fadeIn_200ms_ease-out] text-xs text-[#777473]">
+              Loading users...
+            </p>
           )}
 
           {companyId === 'all' && (
-            <p className="mt-1.5 text-xs text-[#777473]">
+            <p className="mt-1.5 animate-[fadeIn_200ms_ease-out] text-xs text-[#777473]">
               Select a company to load users.
             </p>
           )}
@@ -175,7 +192,7 @@ export default function DeliveryFilters({
             type="date"
             value={fromDate}
             onChange={(event) => onFromDateChange(event.target.value)}
-            className="h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+            className={inputClasses}
           />
         </div>
 
@@ -194,14 +211,14 @@ export default function DeliveryFilters({
             type="date"
             value={toDate}
             onChange={(event) => onToDateChange(event.target.value)}
-            className="h-11 w-full cursor-pointer rounded-md border border-[#cfcfcd] bg-white px-3 text-sm text-[#393536] transition outline-none focus:border-[#f14902] focus:ring-2 focus:ring-[#f14902]/15"
+            className={inputClasses}
           />
         </div>
       </div>
 
       {/* Information */}
 
-      <div className="mt-5 rounded-md border border-[#ecebea] bg-[#fafafa] px-4 py-3">
+      <div className="mt-6 rounded-xl border border-[#ebe9e7] bg-[#faf9f8] px-4 py-3.5 transition-colors duration-200">
         <p className="text-xs leading-5 text-[#6b6968]">
           {companyId === 'all'
             ? 'Select a company to load the available supervisors and pickers.'
@@ -218,7 +235,7 @@ export default function DeliveryFilters({
       {error && (
         <div
           role="alert"
-          className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          className="mt-5 animate-[errorIn_250ms_ease-out] rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
           {error}
         </div>
@@ -226,16 +243,48 @@ export default function DeliveryFilters({
 
       {/* Action */}
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
+      <div className="mt-6 flex flex-col gap-3 border-t border-[#eeecea] pt-5 sm:flex-row sm:justify-end">
+        <ActionButton
+          variant="primary"
+          icon={<Search className="h-4 w-4" />}
           onClick={onSearch}
-          disabled={isSearching}
-          className="h-11 cursor-pointer rounded-md bg-[#f14902] px-6 text-sm font-medium text-white transition hover:bg-[#d94000] disabled:cursor-not-allowed disabled:opacity-60"
+          loading={isSearching}
+          loadingText="Searching..."
         >
-          {isSearching ? 'Searching...' : 'Search Records'}
-        </button>
+          Search Records
+        </ActionButton>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes errorIn {
+          from {
+            opacity: 0;
+            transform: translateY(-4px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }
