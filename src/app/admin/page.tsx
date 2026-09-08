@@ -1,7 +1,9 @@
 'use client';
 
+import Greeting from '@/components/Greeting';
 import Loading from '@/components/Loading';
 import PacklistTable from '@/components/PacklistTable';
+import { useUser } from '@/components/UserContext';
 import { Packlist } from '@/types/Packlist';
 import { useEffect, useState } from 'react';
 
@@ -60,6 +62,7 @@ export default function AdminPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const user = useUser();
 
   useEffect(() => {
     async function loadDashboard() {
@@ -111,11 +114,12 @@ export default function AdminPage() {
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-xl font-semibold text-[#393536]">Dashboard</h1>
+        <Greeting name={user.name} />
+        {/* <h1 className="text-xl font-semibold text-[#393536]">Dashboard</h1>
 
         <p className="mt-1 text-sm text-[#6b6968]">
           Overview of today's logistics activity.
-        </p>
+        </p> */}
       </div>
 
       {/* Picker Statistics */}

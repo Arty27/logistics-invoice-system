@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireUser } from '@/server/auth/authorization';
 
 import AdminNavigation from './navigation';
+import { UserProvider } from '@/components/UserContext';
 
 export default async function AdminLayout({
   children,
@@ -20,8 +21,10 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[#f7f7f6]">
-      <AdminNavigation user={user} />
-      {children}
+      <UserProvider user={user}>
+        <AdminNavigation user={user} />
+        {children}
+      </UserProvider>
     </div>
   );
 }

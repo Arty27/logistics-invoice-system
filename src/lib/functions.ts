@@ -47,7 +47,8 @@ export const getDate = (value: Date | string | null | undefined): string => {
 
   if (Number.isNaN(date.getTime())) return '-';
 
-  return date.toLocaleDateString('en-GB', {
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -61,9 +62,11 @@ export const getTime = (value: Date | string | null | undefined): string => {
 
   if (Number.isNaN(date.getTime())) return '-';
 
-  return date.toLocaleTimeString('en-GB', {
+  return date.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Kolkata',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hour12: true,
   });
 };
@@ -97,4 +100,16 @@ export function getAvatarColor(name: string) {
   const index = Math.abs(hash) % avatarColors.length;
 
   return avatarColors[index];
+}
+
+export function parseToNumber(record: any) {
+  if (
+    record.invoiceWeight === null ||
+    record.invoiceWeight === undefined ||
+    record.invoiceWeight === ''
+  ) {
+    return null;
+  }
+
+  return Number(record.invoiceWeight);
 }
