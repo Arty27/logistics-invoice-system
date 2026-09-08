@@ -1,5 +1,6 @@
 'use client';
 
+import Table, { type TableColumn } from '@/components/Table';
 import type { AdminRecord } from '@/types/delivery-records';
 
 type DeliveryTableProps = {
@@ -7,108 +8,115 @@ type DeliveryTableProps = {
   formatDateTime: (date: string | null) => string;
 };
 
+const Pill = ({ text }: { text: string }) => {
+  return (
+    <span className="inline-flex rounded-full bg-[#f3f3f2] px-2.5 py-1 text-xs font-medium text-[#5e5c5b]">
+      {text}
+    </span>
+  );
+};
+
 export default function DeliveryTable({
   records,
   formatDateTime,
 }: DeliveryTableProps) {
+  const columns: TableColumn<AdminRecord>[] = [
+    {
+      key: 'type',
+      header: 'Type',
+      searchValue: (record) =>
+        record.type === 'PACKLIST' ? 'Packlist' : 'Invoice Verification',
+      render: (record) => (
+        <Pill
+          text={
+            record.type === 'PACKLIST' ? 'Packlist' : 'Invoice Verification'
+          }
+        />
+      ),
+    },
+
+    {
+      key: 'company',
+      header: 'Company',
+      searchValue: (record) => record.company.name,
+      render: (record) => record.company.name,
+    },
+
+    {
+      key: 'user',
+      header: 'User',
+      searchValue: (record) => record.user.name,
+      render: (record) => record.user.name,
+    },
+
+    {
+      key: 'role',
+      header: 'Role',
+      searchValue: (record) =>
+        record.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Picker',
+      render: (record) =>
+        record.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Picker',
+    },
+
+    {
+      key: 'reference',
+      header: 'Reference',
+      searchValue: (record) =>
+        record.type === 'INVOICE_VERIFICATION'
+          ? (record.invoiceNumber ?? '')
+          : (record.referenceNumber ?? ''),
+      render: (record) =>
+        record.type === 'INVOICE_VERIFICATION'
+          ? (record.invoiceNumber ?? '-')
+          : record.referenceNumber,
+    },
+
+    {
+      key: 'quantity',
+      header: 'Quantity',
+      align: 'right',
+      searchValue: (record) =>
+        record.invoiceQuantity != null ? String(record.invoiceQuantity) : '',
+      render: (record) => record.invoiceQuantity ?? '-',
+    },
+
+    {
+      key: 'weight',
+      header: 'Weight (Kg)',
+      align: 'right',
+      searchValue: (record) =>
+        record.grossWeight != null ? String(record.grossWeight) : '',
+      render: (record) => record.grossWeight ?? '-',
+    },
+
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      searchValue: (record) => record.status,
+      render: (record) => record.status,
+    },
+
+    {
+      key: 'completed',
+      header: 'Completed',
+      align: 'right',
+      searchValue: (record) =>
+        record.completedAt ? formatDateTime(record.completedAt) : '',
+      render: (record) => formatDateTime(record.completedAt),
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-275 border-collapse">
-        <thead>
-          <tr className="border-b border-[#dedddb] bg-[#fafafa]">
-            <TableHeader>Type</TableHeader>
-            <TableHeader>Company</TableHeader>
-            <TableHeader>User</TableHeader>
-            <TableHeader>Reference</TableHeader>
-            <TableHeader align="right">Quantity</TableHeader>
-            <TableHeader align="right">Weight (kg)</TableHeader>
-            <TableHeader>Status</TableHeader>
-            <TableHeader>Completed</TableHeader>
-          </tr>
-        </thead>
-
-        <tbody>
-          {records.map((record) => (
-            <DeliveryTableRow
-              key={`${record.type}-${record.id}`}
-              record={record}
-              formatDateTime={formatDateTime}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function TableHeader({
-  children,
-  align = 'left',
-}: {
-  children: React.ReactNode;
-  align?: 'left' | 'right';
-}) {
-  const alignmentClass = align === 'right' ? 'text-right' : 'text-left';
-
-  return (
-    <th
-      className={`px-4 py-3 ${alignmentClass} text-xs font-semibold tracking-wide text-[#6b6968] uppercase`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function DeliveryTableRow({
-  record,
-  formatDateTime,
-}: {
-  record: AdminRecord;
-  formatDateTime: (date: string | null) => string;
-}) {
-  const isInvoice = record.type === 'INVOICE_VERIFICATION';
-
-  const reference = isInvoice
-    ? (record.invoiceNumber ?? record.referenceNumber)
-    : record.referenceNumber;
-
-  return (
-    <tr className="border-b border-[#ecebea] last:border-b-0 hover:bg-[#fafafa]">
-      <td className="px-4 py-4 text-sm text-[#393536]">
-        <span className="inline-flex rounded-full bg-[#f3f3f2] px-2.5 py-1 text-xs font-medium text-[#5e5c5b]">
-          {isInvoice ? 'Invoice' : 'Packlist'}
-        </span>
-      </td>
-
-      <td className="px-4 py-4 text-sm text-[#393536]">
-        {record.company.name}
-      </td>
-
-      <td className="px-4 py-4">
-        <p className="text-sm font-medium text-[#393536]">{record.user.name}</p>
-
-        <p className="mt-0.5 text-xs text-[#777473]">
-          {record.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Picker'}
-        </p>
-      </td>
-
-      <td className="px-4 py-4 text-sm font-medium text-[#393536]">
-        {reference}
-      </td>
-
-      <td className="px-4 py-4 text-right text-sm text-[#393536]">
-        {record.invoiceQuantity}
-      </td>
-
-      <td className="px-4 py-4 text-right text-sm text-[#393536]">
-        {record.grossWeight}
-      </td>
-
-      <td className="px-4 py-4 text-sm text-[#393536]">{record.status}</td>
-
-      <td className="px-4 py-4 text-sm text-[#6b6968]">
-        {formatDateTime(record.completedAt)}
-      </td>
-    </tr>
+    <Table
+      columns={columns}
+      data={records}
+      getRowKey={(record) => record.id}
+      emptyMessage="No records found"
+      emptyDescription="There are no delivery records matching the selected filters."
+      searchable
+      searchPlaceholder="Search records..."
+      pagination
+    />
   );
 }

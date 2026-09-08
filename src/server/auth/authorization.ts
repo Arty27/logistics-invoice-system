@@ -1,12 +1,16 @@
 import { UserRole } from '@prisma/client';
+import { redirect } from 'next/navigation';
+
 import { getCurrentUser } from './session';
-import { ForbiddenError, UnauthorizedError } from '../common/error';
+import { ForbiddenError } from '../common/error';
 
 export async function requireUser() {
   const user = await getCurrentUser();
+
   if (!user) {
-    throw new UnauthorizedError();
+    redirect('/login');
   }
+
   return user;
 }
 
