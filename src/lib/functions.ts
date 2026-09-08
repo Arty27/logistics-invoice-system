@@ -67,3 +67,34 @@ export const getTime = (value: Date | string | null | undefined): string => {
     hour12: true,
   });
 };
+
+export const avatarColors = [
+  'bg-blue-500',
+  'bg-purple-500',
+  'bg-emerald-500',
+  'bg-orange-500',
+  'bg-pink-500',
+  'bg-cyan-500',
+  'bg-indigo-500',
+  'bg-rose-500',
+  'bg-teal-500',
+  'bg-violet-500',
+];
+
+/**
+ * Generates a consistent avatar background color based on the user's name.
+ * The same name will always get the same color.
+ */
+export function getAvatarColor(name: string) {
+  const normalizedName = name?.trim() || 'User';
+
+  let hash = 0;
+
+  for (let i = 0; i < normalizedName.length; i++) {
+    hash = normalizedName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  const index = Math.abs(hash) % avatarColors.length;
+
+  return avatarColors[index];
+}

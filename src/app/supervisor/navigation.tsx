@@ -2,21 +2,25 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import { User } from '@/types/types';
+import { NavbarItem, User } from '@/types/types';
+import {
+  BookCheckIcon,
+  ClipboardClockIcon,
+  NotebookPenIcon,
+} from 'lucide-react';
 
 type SupervisorNavigationProps = {
   user: User;
 };
 
-const supervisorRoutes = [
-  { id: 1, label: 'Verify Invoice', route: '/supervisor', isDefault: true },
+const supervisorRoutes: NavbarItem[] = [
+  { label: 'Verify Invoice', href: '/supervisor', icon: BookCheckIcon },
   {
-    id: 2,
     label: 'My Records',
-    route: '/supervisor/records',
-    isDefault: false,
+    href: '/supervisor/records',
+    icon: ClipboardClockIcon,
   },
-  { id: 3, label: 'RST', route: '/supervisor/rst', isDefault: false },
+  { label: 'RST', href: '/supervisor/rst', icon: NotebookPenIcon },
 ];
 
 export default function SupervisorNavigation({
@@ -27,7 +31,7 @@ export default function SupervisorNavigation({
 
   return (
     <Navbar
-      routes={supervisorRoutes}
+      navItems={supervisorRoutes}
       router={router}
       pathname={pathname}
       user={user}

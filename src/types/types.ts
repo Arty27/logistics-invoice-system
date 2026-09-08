@@ -1,4 +1,5 @@
 import { UserRole } from '@prisma/client';
+import { LucideIcon } from 'lucide-react';
 
 export type DeliveryType = 'INWARD' | 'OUTWARD' | 'MATERIAL_RETURN' | 'OTHER';
 
@@ -14,6 +15,12 @@ export type NavbarButton = {
   label: string;
   route: string;
   isDefault: boolean;
+};
+
+export type NavbarItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
 };
 
 export type User = {

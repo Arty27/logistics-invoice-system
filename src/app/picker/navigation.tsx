@@ -3,19 +3,19 @@
 import { usePathname, useRouter } from 'next/navigation';
 
 import Navbar from '@/components/Navbar';
-import { User } from '@/types/types';
+import { NavbarItem, User } from '@/types/types';
+import { ClipboardClockIcon, NotebookPenIcon } from 'lucide-react';
 
 type PickerNavigationProps = {
   user: User;
 };
 
-const pickerRoutes = [
-  { id: 1, label: 'Enter Packlist', route: '/picker', isDefault: true },
+const pickerRoutes: NavbarItem[] = [
+  { label: 'Enter Packlist', href: '/picker', icon: NotebookPenIcon },
   {
-    id: 2,
     label: 'My Records',
-    route: '/picker/records',
-    isDefault: false,
+    href: '/picker/records',
+    icon: ClipboardClockIcon,
   },
 ];
 
@@ -27,7 +27,7 @@ export default function PickerNavigation({ user }: PickerNavigationProps) {
     <Navbar
       user={user}
       router={router}
-      routes={pickerRoutes}
+      navItems={pickerRoutes}
       pathname={pathname}
     />
   );

@@ -3,22 +3,44 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { User } from '@/types/types';
+import {
+  BarChart3,
+  Building2Icon,
+  LayoutDashboard,
+  NotebookPenIcon,
+  UsersIcon,
+} from 'lucide-react';
 
 type AdminNavigationProps = {
   user: User;
 };
 
-const adminRoutes = [
-  { id: 1, label: 'Dashboard', route: '/admin', isDefault: true },
+const navItems = [
   {
-    id: 2,
-    label: 'Records',
-    route: '/admin/records',
-    isDefault: false,
+    label: 'Overview',
+    href: '/admin',
+    icon: LayoutDashboard,
   },
-  { id: 3, label: 'RST', route: '/admin/rst', isDefault: false },
-  { id: 4, label: 'Company', route: '/admin/company', isDefault: false },
-  { id: 5, label: 'Members', route: '/admin/pickers', isDefault: false },
+  {
+    label: 'Records',
+    href: '/admin/records',
+    icon: BarChart3,
+  },
+  {
+    label: 'RST',
+    href: '/admin/rst',
+    icon: NotebookPenIcon,
+  },
+  {
+    label: 'Company',
+    href: '/admin/company',
+    icon: Building2Icon,
+  },
+  {
+    label: 'Members',
+    href: '/admin/pickers',
+    icon: UsersIcon,
+  },
 ];
 
 export default function AdminNavigation({ user }: AdminNavigationProps) {
@@ -28,9 +50,9 @@ export default function AdminNavigation({ user }: AdminNavigationProps) {
   return (
     <Navbar
       router={router}
-      pathname={pathname}
-      routes={adminRoutes}
+      navItems={navItems}
       user={user}
+      pathname={pathname}
     />
   );
 }
