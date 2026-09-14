@@ -6,32 +6,28 @@ import { prisma } from '@/server/db/prisma';
 
 export async function GET(request: Request) {
   try {
-    /*
-     * ---------------------------------------------------------
-     * Authentication
-     * ---------------------------------------------------------
-     */
-
     await requireAdmin();
-
-    /*
-     * ---------------------------------------------------------
-     * Read query parameters
-     * ---------------------------------------------------------
-     */
 
     const { searchParams } = new URL(request.url);
 
     const companyId = searchParams.get('companyId');
     const userId = searchParams.get('userId');
+    const userType = searchParams.get('userType');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
-    /*
-     * ---------------------------------------------------------
-     * Validate dates
-     * ---------------------------------------------------------
-     */
+    // ---------------------------------------------------------
+    // Validate required filters
+    // ---------------------------------------------------------
+
+    if (!companyId || companyId === 'all') {
+      return NextResponse.json(
+        {
+          error: 'Company is required.',
+        },
+        { status: 400 },
+      );
+    }
 
     if (!from || !to) {
       return NextResponse.json(
@@ -42,20 +38,31 @@ export async function GET(request: Request) {
       );
     }
 
-    const fromDate = new Date(`${from}T00:00:00.000`);
-    const toDateExclusive = new Date(`${to}T00:00:00.000`);
+    // ---------------------------------------------------------
+    // Validate user role
+    // ---------------------------------------------------------
 
-    /*
-     * Move the upper boundary to the beginning of the
-     * following day.
-     *
-     * This gives us:
-     *
-     * >= fromDate
-     * < toDateExclusive
-     *
-     * and avoids relying on 23:59:59.999.
-     */
+    if (
+      userType &&
+      userType !== 'all' &&
+      userType !== 'PICKER' &&
+      userType !== 'SUPERVISOR'
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Invalid user role.',
+        },
+        { status: 400 },
+      );
+    }
+
+    // ---------------------------------------------------------
+    // Date range
+    // ---------------------------------------------------------
+
+    const fromDate = new Date(`${from}T00:00:00.000`);
+
+    const toDateExclusive = new Date(`${to}T00:00:00.000`);
     toDateExclusive.setDate(toDateExclusive.getDate() + 1);
 
     if (
@@ -70,7 +77,7 @@ export async function GET(request: Request) {
       );
     }
 
-    if (fromDate >= toDateExclusive) {
+    if (fromDate > toDateExclusive) {
       return NextResponse.json(
         {
           error: 'The from date cannot be after the to date.',
@@ -79,173 +86,144 @@ export async function GET(request: Request) {
       );
     }
 
-    /*
-     * ---------------------------------------------------------
-     * Build common filters
-     * ---------------------------------------------------------
-     *
-     * companyId applies directly to both tables.
-     *
-     * userId is interpreted differently:
-     *
-     * PacklistEntry
-     *   -> pickerId
-     *
-     * InvoiceVerification
-     *   -> supervisorId
-     */
+    // ---------------------------------------------------------
+    // Determine which record types to fetch
+    // ---------------------------------------------------------
 
-    const companyFilter =
-      companyId && companyId !== 'all'
-        ? {
+    const fetchPacklists =
+      !userType || userType === 'all' || userType === 'PICKER';
+
+    const fetchInvoiceVerifications =
+      !userType || userType === 'all' || userType === 'SUPERVISOR';
+
+    // ---------------------------------------------------------
+    // Packlists
+    // ---------------------------------------------------------
+
+    const packlistsPromise = fetchPacklists
+      ? prisma.packlistEntry.findMany({
+          where: {
             companyId,
-          }
-        : {};
 
-    /*
-     * ---------------------------------------------------------
-     * Fetch Packlists
-     * ---------------------------------------------------------
-     *
-     * Only completed deliveries are included.
-     */
+            status: 'COMPLETED',
 
-    const packlistsPromise = prisma.packlistEntry.findMany({
-      where: {
-        status: 'COMPLETED',
+            completedAt: {
+              gte: fromDate,
+              lt: toDateExclusive,
+            },
 
-        completedAt: {
-          gte: fromDate,
-          lt: toDateExclusive,
-        },
+            ...(userId && userId !== 'all'
+              ? {
+                  pickerId: userId,
+                }
+              : {}),
+          },
 
-        ...companyFilter,
-
-        ...(userId && userId !== 'all'
-          ? {
-              pickerId: userId,
-            }
-          : {}),
-      },
-
-      select: {
-        id: true,
-
-        referenceNumber: true,
-        packlistNumber: true,
-
-        invoiceQuantity: true,
-        grossWeight: true,
-
-        status: true,
-        deliveryType: true,
-
-        startedAt: true,
-        completedAt: true,
-
-        createdAt: true,
-
-        picker: {
           select: {
             id: true,
-            name: true,
-            phoneNumber: true,
-          },
-        },
 
-        company: {
+            referenceNumber: true,
+            packlistNumber: true,
+
+            invoiceQuantity: true,
+            grossWeight: true,
+
+            status: true,
+            deliveryType: true,
+
+            startedAt: true,
+            completedAt: true,
+
+            createdAt: true,
+
+            picker: {
+              select: {
+                id: true,
+                name: true,
+                phoneNumber: true,
+              },
+            },
+
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        })
+      : Promise.resolve([]);
+
+    // ---------------------------------------------------------
+    // Invoice Verifications
+    // ---------------------------------------------------------
+
+    const invoiceVerificationsPromise = fetchInvoiceVerifications
+      ? prisma.invoiceVerification.findMany({
+          where: {
+            companyId,
+
+            status: 'COMPLETED',
+
+            completedAt: {
+              gte: fromDate,
+              lt: toDateExclusive,
+            },
+
+            ...(userId && userId !== 'all'
+              ? {
+                  supervisorId: userId,
+                }
+              : {}),
+          },
+
           select: {
             id: true,
-            name: true,
+
+            invoiceNumber: true,
+
+            invoicedQuantity: true,
+            dispatchedQuantity: true,
+
+            invoicedWeight: true,
+            dispatchedWeight: true,
+
+            remarks: true,
+            result: true,
+
+            status: true,
+
+            startedAt: true,
+            completedAt: true,
+
+            createdAt: true,
+
+            supervisor: {
+              select: {
+                id: true,
+                name: true,
+                phoneNumber: true,
+              },
+            },
+
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
-        },
-      },
-    });
-
-    /*
-     * ---------------------------------------------------------
-     * Fetch Invoice Verifications
-     * ---------------------------------------------------------
-     *
-     * Only completed verifications are included.
-     */
-
-    const invoiceVerificationsPromise = prisma.invoiceVerification.findMany({
-      where: {
-        status: 'COMPLETED',
-
-        completedAt: {
-          gte: fromDate,
-          lt: toDateExclusive,
-        },
-
-        ...companyFilter,
-
-        ...(userId && userId !== 'all'
-          ? {
-              supervisorId: userId,
-            }
-          : {}),
-      },
-
-      select: {
-        id: true,
-
-        invoiceNumber: true,
-
-        invoicedQuantity: true,
-        dispatchedQuantity: true,
-
-        invoicedWeight: true,
-        dispatchedWeight: true,
-
-        remarks: true,
-        result: true,
-
-        status: true,
-
-        startedAt: true,
-        completedAt: true,
-
-        createdAt: true,
-
-        supervisor: {
-          select: {
-            id: true,
-            name: true,
-            phoneNumber: true,
-          },
-        },
-
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-
-    /*
-     * ---------------------------------------------------------
-     * Run both database queries
-     * ---------------------------------------------------------
-     *
-     * Promise.all means the two queries can execute in
-     * parallel rather than waiting for one to finish before
-     * starting the other.
-     */
+        })
+      : Promise.resolve([]);
 
     const [packlists, invoiceVerifications] = await Promise.all([
       packlistsPromise,
       invoiceVerificationsPromise,
     ]);
 
-    /*
-     * ---------------------------------------------------------
-     * Normalize Packlists
-     * ---------------------------------------------------------
-     */
+    // ---------------------------------------------------------
+    // Normalize Packlists
+    // ---------------------------------------------------------
 
     const packlistRecords = packlists.map((packlist) => ({
       type: 'PACKLIST' as const,
@@ -282,11 +260,9 @@ export async function GET(request: Request) {
       createdAt: packlist.createdAt,
     }));
 
-    /*
-     * ---------------------------------------------------------
-     * Normalize Invoice Verifications
-     * ---------------------------------------------------------
-     */
+    // ---------------------------------------------------------
+    // Normalize Invoice Verifications
+    // ---------------------------------------------------------
 
     const invoiceRecords = invoiceVerifications.map((verification) => ({
       type: 'INVOICE_VERIFICATION' as const,
@@ -322,32 +298,16 @@ export async function GET(request: Request) {
       createdAt: verification.createdAt,
     }));
 
-    /*
-     * ---------------------------------------------------------
-     * Combine both record types
-     * ---------------------------------------------------------
-     */
+    // ---------------------------------------------------------
+    // Combine + sort
+    // ---------------------------------------------------------
 
     const records = [...packlistRecords, ...invoiceRecords];
-
-    /*
-     * ---------------------------------------------------------
-     * Sort combined records
-     * ---------------------------------------------------------
-     *
-     * Newest completed record first.
-     */
 
     records.sort(
       (a, b) =>
         new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime(),
     );
-
-    /*
-     * ---------------------------------------------------------
-     * Return records
-     * ---------------------------------------------------------
-     */
 
     return NextResponse.json({
       success: true,
