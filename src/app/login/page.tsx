@@ -239,7 +239,7 @@ export default function LoginPage() {
                 alt="Tatvashree Logistics logo"
                 width={180}
                 height={180}
-                className="relative h-30 w-30 object-contain transition-transform duration-300 hover:scale-[1.03] sm:h-[130px] sm:w-[130px]"
+                className="relative h-30 w-30 object-contain transition-transform duration-300 hover:scale-[1.03] sm:h-32.5 sm:w-32.5"
                 priority
               />
             </div>

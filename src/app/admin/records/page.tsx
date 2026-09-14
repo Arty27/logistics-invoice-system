@@ -7,6 +7,8 @@ import { useDeliveryRecords } from '@/hooks/useDeliveryRecords';
 import { exportToExcel } from '@/lib/excel/exporter';
 import { deliveryRecordColumns } from '@/lib/excel/reports/delivery-records';
 import { formatDateTime } from '@/lib/functions';
+import PageHeader from '@/components/PageHeader';
+import { BarChart3 } from 'lucide-react';
 
 export default function AdminInvoiceVerificationsPage() {
   const {
@@ -62,7 +64,7 @@ export default function AdminInvoiceVerificationsPage() {
     <main className="min-h-[calc(100vh-64px)] bg-[#f7f7f6] px-4 py-6 sm:px-6 lg:py-8">
       <div className="mx-auto max-w-6xl animate-[pageFadeIn_400ms_ease-out]">
         {/* Page Header */}
-        <header className="mb-6">
+        {/* <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-[#393536] sm:text-[26px]">
             Delivery Records
           </h1>
@@ -71,7 +73,13 @@ export default function AdminInvoiceVerificationsPage() {
             View packlists and invoice verifications by company, user and date
             range.
           </p>
-        </header>
+        </header> */}
+        <PageHeader
+          title="Delivery Records"
+          description="View packlists and invoice verifications by company, user and date
+            range."
+          icon={<BarChart3 className="h-8 w-8 text-[#f14902]" />}
+        />
 
         {/* Filters */}
         <DeliveryFilters

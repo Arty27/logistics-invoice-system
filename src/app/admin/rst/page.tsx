@@ -9,6 +9,8 @@ import { useRstRecords } from '@/hooks/useRstRecords';
 import { exportToExcel } from '@/lib/excel/exporter';
 import { rstColumns } from '@/lib/excel/reports/rst';
 import { formatDateTime } from '@/lib/functions';
+import PageHeader from '@/components/PageHeader';
+import { NotebookPenIcon } from 'lucide-react';
 
 export default function RstPage() {
   const {
@@ -56,15 +58,11 @@ export default function RstPage() {
       <div className="mx-auto max-w-6xl animate-[pageFadeIn_400ms_ease-out]">
         {/* PAGE HEADER */}
 
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#393536] sm:text-[26px]">
-            Rolling Stock Takeover
-          </h1>
-
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#6b6968]">
-            Enter and review rolling stock entries.
-          </p>
-        </header>
+        <PageHeader
+          title="Rolling Stock Takeover"
+          description="Enter and review rolling stock entries."
+          icon={<NotebookPenIcon className="h-8 w-8 text-[#f14902]" />}
+        />
 
         {/* FILTERS */}
 
